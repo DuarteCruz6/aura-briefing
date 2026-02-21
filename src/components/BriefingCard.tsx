@@ -1,7 +1,8 @@
-import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown } from "lucide-react";
+import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Video } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "@/hooks/useBookmarks";
+import { VideoPlayerPopup } from "./VideoPlayerPopup";
 
 interface BriefingCardProps {
   title: string;
@@ -18,6 +19,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
 
   return (
     <motion.div
@@ -63,8 +65,18 @@ export function BriefingCard({ title, description, duration, topics, confidence,
           </div>
         </div>
 
-        {/* Right: bookmark + play */}
+        {/* Right: actions */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setVideoOpen(true);
+            }}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/15"
+            title="Turn into video"
+          >
+            <Video className="w-4 h-4" />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -105,6 +117,8 @@ export function BriefingCard({ title, description, duration, topics, confidence,
           </motion.div>
         )}
       </AnimatePresence>
+
+      <VideoPlayerPopup open={videoOpen} onClose={() => setVideoOpen(false)} title={title} />
     </motion.div>
   );
 }
