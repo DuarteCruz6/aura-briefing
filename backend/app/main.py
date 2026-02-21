@@ -42,6 +42,17 @@ app = FastAPI(
 )
 
 
+@app.get("/")
+def root():
+    """Root route for backend-only deploy (no static SPA)."""
+    return {
+        "service": settings.app_name,
+        "docs": "/docs",
+        "health": "/health",
+        "tables": "/tables",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

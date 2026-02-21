@@ -1,10 +1,11 @@
-# Build frontend
+# Build frontend (src at root for Lovable)
 FROM node:22-alpine AS frontend-build
-WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json* ./
-# npm install tolerates lock file drift (e.g. different npm in image vs host); use npm ci for strict reproducibility
-RUN npm install
-COPY frontend/ ./
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json tailwind.config.ts postcss.config.cjs components.json ./
+COPY src ./src
+COPY public ./public
 RUN npm run build
 
 # Backend + serve frontend
@@ -19,7 +20,7 @@ COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./
-COPY --from=frontend-build /app/frontend/dist ./static
+COPY --from=frontend-build /app/dist ./static
 
 RUN mkdir -p /app/data
 
