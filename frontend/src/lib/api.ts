@@ -4,7 +4,10 @@
  * - Production (served by backend): leave empty for same-origin
  */
 
-const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const BASE = (import.meta.env.VITE_API_URL ?? "https://aura-briefing-production.up.railway.app").replace(/\/$/, "");
+
+/** @deprecated Use api or VITE_API_URL; kept for compatibility with main branch code */
+export const API_BASE_URL = BASE;
 
 function url(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;

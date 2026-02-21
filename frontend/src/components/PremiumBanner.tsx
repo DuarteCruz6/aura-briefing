@@ -1,5 +1,7 @@
-import { Crown, Video, Sparkles, Check, X } from "lucide-react";
+import { Crown, Video, Sparkles, Check, X, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 interface PremiumBannerProps {
   showPopup: boolean;
@@ -7,6 +9,60 @@ interface PremiumBannerProps {
 }
 
 export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) {
+  const [trialStarted, setTrialStarted] = useState(() => {
+    return localStorage.getItem("briefcast_trial") === "active";
+  });
+
+  const handleStartTrial = () => {
+    localStorage.setItem("briefcast_trial", "active");
+    localStorage.setItem("briefcast_trial_start", new Date().toISOString());
+    setTrialStarted(true);
+    toast({ title: "🎉 Trial Activated!", description: "You now have 7 days of Premium access. Enjoy!" });
+    onPopupChange(false);
+  };
+
+  const [buyLoading, setBuyLoading] = useState(false);
+
+  const handleBuyNow = async () => {
+    setBuyLoading(true);
+    toast({ title: "💳 Creating subscription…", description: "Connecting to Stripe…" });
+
+    try {
+      const res = await fetch("https://api.stripe.com/v1/subscription_schedules", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer sk_test_51LHrRJSF15KCJB9H9jwN566bkeX4CBfZcgDCNfz6IKl9TgsEapwawQyefdKS1bnrrb5buK88tL7zruiugLykR4gO00qnef4fve",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          "customer": "cus_U1LUWiLG5Q0kdd",
+          "end_behavior": "cancel",
+          "phases[0][currency]": "eur",
+          "phases[0][items][0][price]": "price_1T3IWkSF15KCJB9HDzc1SvGh",
+          "phases[0][items][0][quantity]": "1",
+          "phases[0][iterations]": "12",
+          "phases[0][proration_behavior]": "none",
+          "start_date": "now",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem("briefcast_trial", "active");
+        setTrialStarted(true);
+        toast({ title: "✅ Premium Unlocked!", description: `Subscription scheduled! ID: ${data.id}` });
+        onPopupChange(false);
+      } else {
+        toast({ title: "⚠️ Stripe Error", description: data.error?.message || "Something went wrong." });
+      }
+    } catch (err) {
+      toast({ title: "❌ Network Error", description: "Could not reach Stripe. Try again." });
+    } finally {
+      setBuyLoading(false);
+    }
+  };
+
   return (
     <>
       <motion.section
@@ -99,10 +155,23 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
                 </div>
               </div>
 
-              <button className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
-                Start 7-Day Free Trial
+              <button
+                onClick={handleStartTrial}
+                disabled={trialStarted}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {trialStarted ? "✓ Trial Active" : "Start 7-Day Free Trial"}
               </button>
-              <p className="text-xs text-muted-foreground text-center mt-3">Cancel anytime. No charge for 7 days.</p>
+
+              <button
+                onClick={handleBuyNow}
+                disabled={buyLoading}
+                className="w-full py-3 rounded-xl bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+              >
+                <Zap className="w-4 h-4" />
+                {buyLoading ? "Processing…" : "Buy Now — €10/mo"}
+              </button>
+              <p className="text-xs text-muted-foreground text-center mt-3">Cancel anytime. No charge during trial.</p>
             </motion.div>
           </motion.div>
         )}

@@ -1,5 +1,5 @@
-import { Home, Compass, Bookmark, Settings, ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { Home, Compass, Bookmark, Settings, ChevronLeft, ChevronRight, Sun, Moon } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -19,7 +19,14 @@ const bottomItems = [
 
 export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem("briefcast_theme") || "dark");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.documentElement.classList.remove("light", "dark");
+    document.documentElement.classList.add(theme);
+    localStorage.setItem("briefcast_theme", theme);
+  }, [theme]);
 
   return (
     <motion.aside
@@ -95,6 +102,28 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
             </AnimatePresence>
           </button>
         ))}
+      </div>
+
+      {/* Theme toggle */}
+      <div className="px-3 mb-1">
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="nav-item w-full"
+        >
+          {theme === "dark" ? <Sun className="w-5 h-5 flex-shrink-0" /> : <Moon className="w-5 h-5 flex-shrink-0" />}
+          <AnimatePresence mode="wait">
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="whitespace-nowrap"
+              >
+                {theme === "dark" ? "Light Mode" : "Dark Mode"}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
       </div>
 
       {/* Collapse toggle */}
