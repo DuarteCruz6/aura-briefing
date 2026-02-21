@@ -1,8 +1,7 @@
-import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard, Crown } from "lucide-react";
+import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
-import { VideoPlayerPopup } from "./VideoPlayerPopup";
 
 interface BriefingCardProps {
   title: string;
@@ -19,6 +18,7 @@ interface BriefingCardProps {
   onPlay?: (audioUrl: string, title: string) => void;
   onPause?: () => void;
   onPremiumClick?: () => void;
+  onVideoClick?: (title: string) => void;
 }
 
 function getConfidenceColor(c: number) {
@@ -27,11 +27,10 @@ function getConfidenceColor(c: number) {
   return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
 }
 
-export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, onPlay, onPause, onPremiumClick }: BriefingCardProps) {
+export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
-  const [videoOpen, setVideoOpen] = useState(false);
   const cc = getConfidenceColor(confidence);
 
   return (
@@ -39,7 +38,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.1 }}
-      className={`glass-panel hover-lift cursor-pointer group relative overflow-hidden border-2 ${cc.ring} ${cc.glow}`}
+      className={`glass-panel cursor-pointer group relative overflow-hidden border-2 ${cc.ring} ${cc.glow} transition-all duration-300 hover:translate-y-[-2px] hover:shadow-xl`}
     >
       {/* Animated gradient on hover */}
       <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/3 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -96,29 +95,30 @@ export function BriefingCard({ title, description, duration, topics, confidence,
             onClick={(e) => {
               e.stopPropagation();
               if (isPremium) {
-                setVideoOpen(true);
+                onVideoClick?.(title);
               } else {
                 onPremiumClick?.();
               }
             }}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-primary/15 ${isPremium ? "hover:text-primary" : "hover:text-amber-500"}`}
-            title={isPremium ? "Turn into video" : "Premium feature"}
+            className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:bg-primary/15 hover:text-primary"
+            title={isPremium ? "Turn into video" : "Upgrade to Premium"}
           >
-            {isPremium ? <Clapperboard className="w-5 h-5" /> : <Crown className="w-5 h-5" />}
+            <Clapperboard className="w-5 h-5" />
           </motion.button>
-          <button
+          <motion.button
             onClick={(e) => {
               e.stopPropagation();
               toggleBookmark({ title, description, duration, topics, confidence });
             }}
+            whileTap={{ scale: 0.85 }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
               bookmarked
                 ? "bg-primary/15 text-primary"
-                : "bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
+                : "bg-secondary/50 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:text-primary"
             }`}
           >
-            <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-primary" : ""}`} />
-          </button>
+            <Bookmark className={`w-4 h-4 transition-transform duration-200 ${bookmarked ? "fill-primary scale-110" : ""}`} />
+          </motion.button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -158,7 +158,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
         )}
       </AnimatePresence>
 
-      <VideoPlayerPopup open={videoOpen} onClose={() => setVideoOpen(false)} title={title} />
+      {/* VideoPlayerPopup is now rendered at page level */}
     </motion.div>
   );
 }

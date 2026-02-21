@@ -317,6 +317,32 @@ async def generate_podcast(body: PodcastGenerateRequest):
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        from elevenlabs.core.api_error import ApiError as ElevenLabsApiError
+
+        if isinstance(e, ElevenLabsApiError):
+            status = getattr(e, "status_code", 502)
+            body = getattr(e, "body", None) or {}
+            detail_obj = body.get("detail", body) if isinstance(body, dict) else {}
+            msg = (
+                detail_obj.get("message")
+                if isinstance(detail_obj, dict)
+                else str(detail_obj) if detail_obj else None
+            )
+            if status == 401:
+                detail = (
+                    "ElevenLabs rejected the request: free tier may be disabled or account restricted (e.g. proxy/VPN or usage limits). Use a paid subscription or a different API key."
+                    if not msg
+                    else msg
+                )
+            elif status == 404 and "voice" in (msg or "").lower():
+                detail = msg or "The requested voice was not found."
+            elif status == 429:
+                detail = msg or "ElevenLabs rate limit exceeded. Try again later."
+            else:
+                detail = msg or f"ElevenLabs TTS error (status {status})."
+            raise HTTPException(status_code=502, detail=detail)
+        raise
 
     return FileResponse(
         path_str,

@@ -1,15 +1,19 @@
-import { Play, Sparkles } from "lucide-react";
+import { Play, Pause, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { RotatingGlobe } from "./RotatingGlobe";
+import { useState } from "react";
 
 interface TodaysBriefingProps {
   frequency?: string;
   onPlay?: (audioUrl: string, title: string) => void;
+  isPlaying?: boolean;
+  currentTrackTitle?: string;
+  onPause?: () => void;
 }
 
 const BRIEFING_AUDIO = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
-export function TodaysBriefing({ frequency = "daily", onPlay }: TodaysBriefingProps) {
+export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, currentTrackTitle, onPause }: TodaysBriefingProps) {
   const freqLabel = frequency === "weekly" ? "This Week's" : frequency === "monthly" ? "This Month's" : "Today's";
   const freqDesc = frequency === "weekly"
     ? "Your weekly intelligence digest — top stories from the past 7 days."
@@ -67,29 +71,43 @@ export function TodaysBriefing({ frequency = "daily", onPlay }: TodaysBriefingPr
           </p>
 
           <div className="flex items-center gap-4">
-            {/* Pulsing Audio Orb */}
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onPlay?.(BRIEFING_AUDIO, `${freqLabel} Briefing`)}
-              className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow flex-shrink-0"
-            >
-              <motion.div
-                animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                className="absolute inset-0 rounded-full bg-primary/30"
-              />
-              <motion.div
-                animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
-                className="absolute inset-0 rounded-full bg-primary/20"
-              />
-              <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5 fill-primary-foreground relative z-10" />
-            </motion.button>
-            <div>
-              <span className="text-sm font-medium text-foreground">Play Full Briefing</span>
-              <p className="text-xs text-muted-foreground">7 min · Updated 12 min ago</p>
-            </div>
+            {(() => {
+              const briefingTitle = `${freqLabel} Briefing`;
+              const isCurrent = isPlaying && currentTrackTitle === briefingTitle;
+              return (
+                <>
+                  <motion.button
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => isCurrent ? onPause?.() : onPlay?.(BRIEFING_AUDIO, briefingTitle)}
+                    className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow flex-shrink-0"
+                  >
+                    {!isCurrent && (
+                      <>
+                        <motion.div
+                          animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                          className="absolute inset-0 rounded-full bg-primary/30"
+                        />
+                        <motion.div
+                          animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
+                          className="absolute inset-0 rounded-full bg-primary/20"
+                        />
+                      </>
+                    )}
+                    {isCurrent
+                      ? <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-primary-foreground relative z-10" />
+                      : <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5 fill-primary-foreground relative z-10" />
+                    }
+                  </motion.button>
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{isCurrent ? "Pause Briefing" : "Play Full Briefing"}</span>
+                    <p className="text-xs text-muted-foreground">7 min · Updated 12 min ago</p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
-import { ArrowLeft, Check, Search, Sparkles, TrendingUp, Zap } from "lucide-react";
+import { ArrowLeft, Check, Search, Sparkles, TrendingUp, Zap, Plus, X } from "lucide-react";
 
+// ... keep existing code (topics, regions, trendingNow arrays lines 7-37)
 const topics = [
   { id: "ai", label: "AI & Technology", emoji: "🤖", desc: "Artificial intelligence, gadgets & innovation" },
   { id: "world", label: "World News", emoji: "🌍", desc: "Global events & breaking stories" },
@@ -41,9 +42,29 @@ const Explore = () => {
   const [search, setSearch] = useState("");
   const [selectedTopics, setSelectedTopics] = useState<string[]>(["ai", "world", "markets"]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>(["global", "ireland"]);
+  const [customInterests, setCustomInterests] = useState<string[]>(() => {
+    const stored = localStorage.getItem("briefcast_custom_interests");
+    return stored ? JSON.parse(stored) : [];
+  });
+  
 
   const toggle = (id: string, list: string[], setList: (v: string[]) => void) => {
     setList(list.includes(id) ? list.filter((i) => i !== id) : [...list, id]);
+  };
+
+  const addInterest = () => {
+    const trimmed = search.trim();
+    if (!trimmed || customInterests.includes(trimmed)) return;
+    const updated = [...customInterests, trimmed];
+    setCustomInterests(updated);
+    localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
+    setSearch("");
+  };
+
+  const removeInterest = (interest: string) => {
+    const updated = customInterests.filter((i) => i !== interest);
+    setCustomInterests(updated);
+    localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
   };
 
   const filteredTopics = useMemo(
@@ -56,8 +77,14 @@ const Explore = () => {
     [search]
   );
 
+  const filteredCustom = useMemo(
+    () => customInterests.filter((c) => c.toLowerCase().includes(search.toLowerCase())),
+    [search, customInterests]
+  );
+
   const showTopics = filteredTopics.length > 0;
   const showRegions = filteredRegions.length > 0;
+  const showCustom = filteredCustom.length > 0 || !search;
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
@@ -99,9 +126,23 @@ const Explore = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search topics, regions, interests..."
-              className="w-full h-12 pl-12 pr-4 rounded-xl bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && search.trim() && !topics.some(t => t.label.toLowerCase() === search.trim().toLowerCase()) && !regions.some(r => r.label.toLowerCase() === search.trim().toLowerCase())) {
+                  addInterest();
+                }
+              }}
+              placeholder="Search or add a custom interest..."
+              className="w-full h-12 pl-12 pr-24 rounded-xl bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
             />
+            {search.trim() && !customInterests.includes(search.trim()) && (
+              <button
+                onClick={() => { addInterest(); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add
+              </button>
+            )}
           </motion.div>
 
           {/* Trending Now */}
@@ -146,10 +187,53 @@ const Explore = () => {
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
               <Zap className="w-3.5 h-3.5 text-primary" />
               <span className="text-xs font-semibold text-primary">
-                {selectedTopics.length} topics · {selectedRegions.length} regions selected
+                {selectedTopics.length} topics · {selectedRegions.length} regions · {customInterests.length} custom selected
               </span>
             </div>
           </motion.div>
+
+          {/* Custom Interests */}
+          {showCustom && (
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
+              className="mb-12"
+            >
+              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">
+                Your Custom Interests
+              </h2>
+
+
+              {/* Interest chips */}
+              {filteredCustom.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {filteredCustom.map((interest, i) => (
+                    <motion.div
+                      key={interest}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-primary/30 bg-primary/5 group"
+                    >
+                      <span className="text-base">🎯</span>
+                      <span className="text-sm font-medium text-foreground">{interest}</span>
+                      <button
+                        onClick={() => removeInterest(interest)}
+                        className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No custom interests yet. Add keywords like "electric vehicles", "NBA", or "blockchain" to personalize your briefings.
+                </p>
+              )}
+            </motion.section>
+          )}
 
           {/* Topics */}
           {showTopics && (
@@ -239,7 +323,7 @@ const Explore = () => {
             </section>
           )}
 
-          {!showTopics && !showRegions && (
+          {!showTopics && !showRegions && filteredCustom.length === 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
