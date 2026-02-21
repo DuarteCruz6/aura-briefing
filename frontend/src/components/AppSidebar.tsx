@@ -2,6 +2,7 @@ import { Home, Compass, Bookmark, Settings, ChevronLeft, ChevronRight, Sun, Moon
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import logo from "@/assets/logo.png";
 
 interface AppSidebarProps {
   activePage?: string;
@@ -44,17 +45,13 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
               exit={{ opacity: 0 }}
               className="flex items-center gap-2"
             >
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-display font-bold text-sm">B</span>
-              </div>
+              <img src={logo} alt="Briefcast" className="w-8 h-8 object-contain" />
               <span className="font-display font-semibold text-foreground text-lg">Briefcast</span>
             </motion.div>
           )}
         </AnimatePresence>
         {collapsed && (
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
-            <span className="text-primary-foreground font-display font-bold text-sm">B</span>
-          </div>
+          <img src={logo} alt="Briefcast" className="w-8 h-8 object-contain mx-auto" />
         )}
       </div>
 
