@@ -31,17 +31,18 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
       const res = await fetch("https://api.stripe.com/v1/subscription_schedules", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer sk_test_51LHrRJSF15KCJB9H9jwN566bkeX4CBfZcgDCNfz6IKl9TgsEapwawQyefdKS1bnrrb5buK88tL7zruiugLykR4gO00qnef4fve",
+          "Authorization": "Basic " + btoa("sk_test_51LHrRJSF15KCJB9H9jwN566bkeX4CBfZcgDCNfz6IKl9TgsEapwawQyefdKS1bnrrb5buK88tL7zruiugLykR4gO00qnef4fve:"),
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
+          "customer": "cus_U1LUWiLG5Q0kdd",
           "end_behavior": "cancel",
           "phases[0][currency]": "eur",
           "phases[0][items][0][price]": "price_1T3IWkSF15KCJB9HDzc1SvGh",
           "phases[0][items][0][quantity]": "1",
           "phases[0][iterations]": "12",
           "phases[0][proration_behavior]": "none",
-          "start_date": "1772303400",
+          "start_date": "now",
         }),
       });
 
