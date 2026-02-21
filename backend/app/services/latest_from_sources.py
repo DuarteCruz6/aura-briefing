@@ -45,6 +45,69 @@ def _is_rss_url(url: str) -> bool:
     )
 
 
+def _discover_rss_feed(site_url: str) -> str | None:
+    """
+    Discover RSS/Atom feed from a news site homepage URL.
+    Tries: 1) parse page for <link rel="alternate" type="application/rss+xml">,
+    2) common paths like /feed, /rss.
+    """
+    site_url = (site_url or "").strip()
+    if not site_url:
+        return None
+    if "://" not in site_url:
+        site_url = "https://" + site_url
+    parsed = urlparse(site_url)
+    base = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+
+    # 1) Fetch page and look for RSS link in <head>
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            r = client.get(site_url, headers={"User-Agent": USER_AGENT})
+            r.raise_for_status()
+            html = r.text
+    except Exception:
+        html = ""
+
+    if html:
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, "html.parser")
+            for link in soup.find_all("link", rel=True, href=True):
+                rel = (link.get("rel") or "")
+                if isinstance(rel, list):
+                    rel = " ".join(rel).lower()
+                else:
+                    rel = str(rel).lower()
+                type_ = (link.get("type") or "").lower()
+                if "alternate" in rel and ("rss" in type_ or "xml" in type_ or "atom" in type_):
+                    href = link.get("href", "").strip()
+                    if href:
+                        feed_url = urljoin(site_url, href)
+                        if feed_url and (_is_rss_url(feed_url) or "xml" in feed_url.lower()):
+                            return feed_url
+        except Exception:
+            pass
+
+    # 2) Try common RSS paths (RTE, BBC, NYT, most news orgs use these)
+    common_paths = ["/feed", "/rss", "/feeds", "/feed/", "/rss.xml", "/feed/rss", "/news/feed", "/atom.xml"]
+    for path in common_paths:
+        candidate = (base.rstrip("/") + path) if path.startswith("/") else f"{base}/{path}"
+        try:
+            with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+                r = client.get(candidate, headers={"User-Agent": USER_AGENT})
+                if r.status_code == 200:
+                    ct = (r.headers.get("content-type") or "").lower()
+                    if "xml" in ct or "rss" in ct or "atom" in ct:
+                        return candidate
+                    # Some servers don't set content-type correctly; quick sniff
+                    text = (r.text or "")[:500]
+                    if "<rss" in text.lower() or "<feed" in text.lower() or '<?xml' in text:
+                        return candidate
+        except Exception:
+            pass
+    return None
+
+
 def _fetch_latest_from_rss(feed_url: str) -> tuple[LatestItem | None, str | None]:
     """Parse RSS/Atom feed and return latest entry link and title."""
     try:
@@ -299,24 +362,27 @@ def fetch_latest_for_source(source: Source) -> SourceLatestResult:
         )
 
     if st == SourceType.NEWS or st == SourceType.PODCAST:
-        # Treat as RSS if URL looks like a feed; otherwise we don't scrape arbitrary news homepages
-        if _is_rss_url(url):
-            latest, err = _fetch_latest_from_rss(url)
-            return SourceLatestResult(
-                source_id=source.id,
-                source_type=st.value,
-                source_url=url,
-                source_name=source.name,
-                latest=latest,
-                error=err,
-            )
+        # Use RSS: direct feed URL, or auto-discover from news site homepage
+        feed_url = url
+        if not _is_rss_url(url):
+            feed_url = _discover_rss_feed(url)
+            if not feed_url:
+                return SourceLatestResult(
+                    source_id=source.id,
+                    source_type=st.value,
+                    source_url=url,
+                    source_name=source.name,
+                    latest=None,
+                    error="Could not find RSS feed for this URL. Try adding the site's feed URL directly (e.g. site.com/feed or /rss).",
+                )
+        latest, err = _fetch_latest_from_rss(feed_url)
         return SourceLatestResult(
             source_id=source.id,
             source_type=st.value,
             source_url=url,
             source_name=source.name,
-            latest=None,
-            error="News source URL should be an RSS/feed URL (e.g. .../feed or .../rss) to fetch latest article",
+            latest=latest,
+            error=err,
         )
 
     if st == SourceType.X:
