@@ -1,7 +1,7 @@
 """
 Generate podcast audio from text using ElevenLabs Text-to-Speech.
 
-Requires ELEVENLABS_API_KEY in env or pass api_key=.
+Requires ELEVENLABS_API_KEY_TTS in env or pass api_key=.
 """
 
 import os
@@ -30,7 +30,7 @@ def text_to_audio(
     Args:
         text: Podcast script (plain text).
         output_path: Path where the MP3 file will be written.
-        api_key: ElevenLabs API key. Defaults to ELEVENLABS_API_KEY env var.
+        api_key: ElevenLabs API key. Defaults to ELEVENLABS_API_KEY_TTS env var.
         voice_id: ElevenLabs voice ID (default: Rachel).
         model_id: TTS model (default: eleven_multilingual_v2).
         output_format: Output format, e.g. mp3_44100_128.
@@ -48,9 +48,9 @@ def text_to_audio(
     except ImportError as e:
         raise ImportError("elevenlabs is required. Install with: pip install elevenlabs") from e
 
-    key = api_key or os.getenv("ELEVENLABS_API_KEY")
+    key = api_key or os.getenv("ELEVENLABS_API_KEY_TTS")
     if not key:
-        raise ValueError("ELEVENLABS_API_KEY not set and no api_key provided")
+        raise ValueError("ELEVENLABS_API_KEY_TTS not set and no api_key provided")
 
     text = (text or "").strip()
     if not text:

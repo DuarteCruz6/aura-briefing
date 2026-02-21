@@ -2,7 +2,7 @@
 Convert audio file to text using ElevenLabs Speech-to-Text (Scribe).
 Optional: get audio from a YouTube URL then transcribe in one call.
 
-Requires ELEVENLABS_API_KEY in env or pass api_key=.
+Requires ELEVENLABS_API_KEY_STT in env or pass api_key=.
 """
 
 import os
@@ -20,7 +20,7 @@ def audio_to_text(
 
     Args:
         audio_path: Path to the audio file (MP3, WAV, etc. – see ElevenLabs docs).
-        api_key: ElevenLabs API key. Defaults to ELEVENLABS_API_KEY env var.
+        api_key: ElevenLabs API key. Defaults to ELEVENLABS_API_KEY_STT env var.
         model_id: STT model (default: scribe_v2).
         language_code: Language code (default: eng).
 
@@ -37,9 +37,9 @@ def audio_to_text(
     except ImportError as e:
         raise ImportError("elevenlabs is required. Install with: pip install elevenlabs") from e
 
-    key = api_key or os.getenv("ELEVENLABS_API_KEY")
+    key = api_key or os.getenv("ELEVENLABS_API_KEY_STT")
     if not key:
-        raise ValueError("ELEVENLABS_API_KEY not set and no api_key provided")
+        raise ValueError("ELEVENLABS_API_KEY_STT not set and no api_key provided")
 
     client = ElevenLabs(api_key=key)
 
