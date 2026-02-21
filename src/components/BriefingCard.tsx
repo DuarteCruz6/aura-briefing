@@ -50,92 +50,94 @@ export function BriefingCard({ title, description, duration, topics, confidence,
         "bg-gradient-to-r from-transparent via-red-400 to-transparent"
       }`} />
 
-      <div className="relative flex items-center gap-4 p-5" onClick={() => setExpanded(!expanded)}>
-        {/* Left: icon + info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              {icon}
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-display font-semibold text-foreground truncate">{title}</h3>
-              <p className="text-sm text-muted-foreground truncate">{description}</p>
-            </div>
+      <div className="relative p-4 sm:p-5" onClick={() => setExpanded(!expanded)}>
+        {/* Header: icon + title */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            {icon}
           </div>
-
-          <div className="flex items-center gap-4 text-xs text-muted-foreground ml-[52px]">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              {duration}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${cc.dot}`} />
-              {confidence}% confidence
-            </span>
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display font-semibold text-foreground truncate text-sm sm:text-base">{title}</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">{description}</p>
           </div>
+        </div>
 
-          <div className="flex flex-wrap gap-1.5 mt-3 ml-[52px]">
+        {/* Meta row */}
+        <div className="flex items-center gap-3 sm:gap-4 text-xs text-muted-foreground ml-[52px] mb-3">
+          <span className="flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            {duration}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${cc.dot}`} />
+            {confidence}%
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
+        </div>
+
+        {/* Actions + Topics row */}
+        <div className="flex items-end justify-between ml-[52px] gap-3">
+          <div className="flex flex-wrap gap-1.5 min-w-0 flex-1">
             {topics.map((topic) => (
               <span
                 key={topic}
-                className="px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium"
+                className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-secondary text-secondary-foreground text-[11px] sm:text-xs font-medium"
               >
                 {topic}
               </span>
             ))}
           </div>
-        </div>
 
-        {/* Right: actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isPremium) {
-                onVideoClick?.(title);
-              } else {
-                onPremiumClick?.();
-              }
-            }}
-            className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:bg-primary/15 hover:text-primary"
-            title={isPremium ? "Turn into video" : "Upgrade to Premium"}
-          >
-            <Clapperboard className="w-5 h-5" />
-          </motion.button>
-          <motion.button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleBookmark({ title, description, duration, topics, confidence });
-            }}
-            whileTap={{ scale: 0.85 }}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              bookmarked
-                ? "bg-primary/15 text-primary"
-                : "bg-secondary/50 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:text-primary"
-            }`}
-          >
-            <Bookmark className={`w-4 h-4 transition-transform duration-200 ${bookmarked ? "fill-primary scale-110" : ""}`} />
-          </motion.button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isCurrentlyPlaying) {
-                onPause?.();
-              } else {
-                onPlay?.(audioUrl, title);
-              }
-            }}
-            className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-200"
-          >
-            {isCurrentlyPlaying ? (
-              <Pause className="w-5 h-5 fill-primary-foreground" />
-            ) : (
-              <Play className="w-5 h-5 ml-0.5 fill-primary-foreground" />
-            )}
-          </button>
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <motion.button
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isPremium) {
+                  onVideoClick?.(title);
+                } else {
+                  onPremiumClick?.();
+                }
+              }}
+              className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground hover:bg-primary/15 hover:text-primary"
+              title={isPremium ? "Turn into video" : "Upgrade to Premium"}
+            >
+              <Clapperboard className="w-4 h-4 sm:w-5 sm:h-5" />
+            </motion.button>
+            <motion.button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleBookmark({ title, description, duration, topics, confidence });
+              }}
+              whileTap={{ scale: 0.85 }}
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all ${
+                bookmarked
+                  ? "bg-primary/15 text-primary"
+                  : "bg-secondary/50 text-muted-foreground hover:text-primary"
+              }`}
+            >
+              <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 ${bookmarked ? "fill-primary scale-110" : ""}`} />
+            </motion.button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isCurrentlyPlaying) {
+                  onPause?.();
+                } else {
+                  onPlay?.(audioUrl, title);
+                }
+              }}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-200"
+            >
+              {isCurrentlyPlaying ? (
+                <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-primary-foreground" />
+              ) : (
+                <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5 fill-primary-foreground" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -149,7 +151,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 pt-0 ml-[52px] border-t border-border/50">
+            <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 ml-[52px] border-t border-border/50">
               <p className="text-sm text-muted-foreground leading-relaxed pt-4">
                 {summary || `A comprehensive ${duration} briefing covering ${topics.join(", ")}. Tap play to listen to the full audio summary powered by AI analysis of today's most relevant developments.`}
               </p>
