@@ -11,7 +11,7 @@ interface TodaysBriefingProps {
   onPause?: () => void;
 }
 
-const BRIEFING_AUDIO = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+const BRIEFING_AUDIO = "/audio/podcast.wav";
 
 export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, currentTrackTitle, onPause }: TodaysBriefingProps) {
   const freqLabel = frequency === "weekly" ? "This Week's" : frequency === "monthly" ? "This Month's" : "Today's";

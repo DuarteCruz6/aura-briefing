@@ -174,7 +174,7 @@ export const briefings = [
     confidence: 94,
     summary: "Markets opened higher as tech stocks rallied on strong earnings. AI regulation talks continue in Brussels with new proposals expected this week. Climate summit delegates reached a preliminary agreement on carbon credits. Key political developments include upcoming policy votes on infrastructure spending.",
     icon: <TrendingUp className="w-5 h-5" />,
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    audioUrl: "/audio/podcast.wav",
   },
   {
     title: "Tech Briefing",

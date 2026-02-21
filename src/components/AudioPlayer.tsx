@@ -1,6 +1,8 @@
-import { Play, Pause, Volume2, RotateCcw, RotateCw, SkipBack, SkipForward } from "lucide-react";
+import { Play, Pause, Volume2, RotateCcw, RotateCw, SkipBack, SkipForward, AlignLeft } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
+import { getTranscriptForTrack } from "../data/transcripts";
+import { LyricsPanel } from "./LyricsPanel";
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -28,8 +30,10 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
   const [speedIndex, setSpeedIndex] = useState(2);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const transcript = trackTitle ? getTranscriptForTrack(trackTitle) : null;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -55,7 +59,6 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
     audio.play().then(() => { setPlaying(true); onPlayingChange?.(true); }).catch(() => {});
   }, [src]);
 
-  // Sync with external playing state (from briefing card pause)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || externalPlaying === undefined) return;
@@ -99,6 +102,17 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
     audio.currentTime = pct * duration;
   }, [duration]);
 
+  const handleLyricsSeek = useCallback((time: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = time;
+    if (!playing) {
+      audio.play().catch(() => {});
+      setPlaying(true);
+      onPlayingChange?.(true);
+    }
+  }, [playing, onPlayingChange]);
+
   const handleVolumeChange = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -111,11 +125,22 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
       initial={{ y: 60 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="sticky bottom-16 sm:bottom-0 z-40 glass-panel-strong border-t border-border/50 px-3 sm:px-6 py-3"
+      className="sticky bottom-16 sm:bottom-0 z-40 glass-panel-strong border-t border-border/50 px-3 sm:px-6 py-3 relative"
     >
+      {/* Lyrics panel */}
+      {transcript && (
+        <LyricsPanel
+          segments={transcript}
+          currentTime={currentTime}
+          open={lyricsOpen}
+          onClose={() => setLyricsOpen(false)}
+          onSeek={handleLyricsSeek}
+        />
+      )}
+
       <audio ref={audioRef} preload="metadata" />
       <div className="flex items-center gap-3 sm:gap-6">
-        {/* Now playing info — hidden on very small screens */}
+        {/* Now playing info */}
         <div className="hidden sm:flex items-center gap-3 min-w-[160px] lg:min-w-[200px]">
           <div className="relative w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             {playing && (
@@ -136,42 +161,21 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
         {/* Controls + timeline */}
         <div className="flex-1 flex flex-col items-center gap-1">
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={onSkipPrevious}
-              disabled={!hasPrevious}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
-              title="Previous briefing"
-            >
+            <button onClick={onSkipPrevious} disabled={!hasPrevious} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none" title="Previous briefing">
               <SkipBack className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => skip(-10)}
-              className="relative text-muted-foreground hover:text-foreground transition-colors"
-              title="Back 10 seconds"
-            >
+            <button onClick={() => skip(-10)} className="relative text-muted-foreground hover:text-foreground transition-colors" title="Back 10 seconds">
               <RotateCcw className="w-5 h-5" />
               <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
             </button>
-            <button
-              onClick={togglePlay}
-              className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center hover:scale-105 transition-transform"
-            >
+            <button onClick={togglePlay} className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center hover:scale-105 transition-transform">
               {playing ? <Pause className="w-4 h-4 text-background" /> : <Play className="w-4 h-4 text-background ml-0.5" />}
             </button>
-            <button
-              onClick={() => skip(10)}
-              className="relative text-muted-foreground hover:text-foreground transition-colors"
-              title="Forward 10 seconds"
-            >
+            <button onClick={() => skip(10)} className="relative text-muted-foreground hover:text-foreground transition-colors" title="Forward 10 seconds">
               <RotateCw className="w-5 h-5" />
               <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
             </button>
-            <button
-              onClick={onSkipNext}
-              disabled={!hasNext}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
-              title="Next briefing"
-            >
+            <button onClick={onSkipNext} disabled={!hasNext} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none" title="Next briefing">
               <SkipForward className="w-4 h-4" />
             </button>
           </div>
@@ -182,10 +186,7 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
               <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
               <div className="flex-1 relative group cursor-pointer" onClick={handleSeek}>
                 <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full relative transition-all duration-100"
-                    style={{ width: `${progress}%` }}
-                  >
+                  <div className="h-full bg-primary rounded-full relative transition-all duration-100" style={{ width: `${progress}%` }}>
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" />
                   </div>
                 </div>
@@ -195,12 +196,21 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
           </div>
         </div>
 
-        {/* Right controls — hide volume on small screens */}
+        {/* Right controls */}
         <div className="flex items-center gap-2 sm:gap-3 sm:min-w-[140px] justify-end">
-          <button
-            onClick={cycleSpeed}
-            className="text-xs font-medium text-muted-foreground w-10 text-center py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors shrink-0"
-          >
+          {/* Lyrics toggle */}
+          {transcript && (
+            <button
+              onClick={() => setLyricsOpen(!lyricsOpen)}
+              className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${
+                lyricsOpen ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+              title="Show transcript"
+            >
+              <AlignLeft className="w-4 h-4" />
+            </button>
+          )}
+          <button onClick={cycleSpeed} className="text-xs font-medium text-muted-foreground w-10 text-center py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors shrink-0">
             {SPEED_OPTIONS[speedIndex]}x
           </button>
           <div className="hidden sm:flex items-center gap-2">
