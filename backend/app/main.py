@@ -172,7 +172,18 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
     row = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
     if row:
         return _parse_summary_json(row.summary_json)
+    
+    if not os.getenv("ELEVENLABS_API_KEY_TTS"):
+        raise HTTPException(
+            status_code=503,
+            detail="ELEVENLABS_API_KEY_TTS not set; transcription unavailable",
+        )
 
+    if not os.getenv("ELEVENLABS_API_KEY_STT"):
+        raise HTTPException(
+            status_code=503,
+            detail="ELEVENLABS_API_KEY_STT not set; transcription unavailable",
+        )
     from app.models.transcription import youtube_url_to_text
 
     output_dir = "/tmp/transcribe"
@@ -230,6 +241,12 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
         raise HTTPException(status_code=400, detail="url is required")
     from app.services import get_or_extract_summary
 
+    if _is_youtube_url(url) and not os.getenv("ELEVENLABS_API_KEY_STT"):
+        raise HTTPException(
+            status_code=503,
+            detail="ELEVENLABS_API_KEY_STT not set; YouTube transcription unavailable",
+        )
+    result = await asyncio.to_thread(get_or_extract_summary, url, db)
     try:
         result = await asyncio.to_thread(get_or_extract_summary, url, db)
     except ValueError as e:
@@ -266,13 +283,13 @@ PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 async def generate_podcast(body: PodcastGenerateRequest):
     """
     Generate podcast audio from script text using ElevenLabs TTS.
-    Returns the MP3 file. Requires ELEVENLABS_API_KEY.
+    Returns the MP3 file. Requires ELEVENLABS_API_KEY_TTS.
     """
-    if not os.getenv("ELEVENLABS_API_KEY"):
+    if not os.getenv("ELEVENLABS_API_KEY_TTS"):
         raise HTTPException(
             status_code=503,
-            detail="ELEVENLABS_API_KEY not set; podcast generation unavailable",
-        )
+            detail="ELEVENLABS_API_KEY_TTS not set; podcast generation unavailable",
+        )   
     from app.models.podcast_generation import text_to_audio
     from app.models.podcast_generation.tts_generator import (
         DEFAULT_MODEL_ID,

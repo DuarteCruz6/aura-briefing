@@ -13,9 +13,11 @@ function formatTime(seconds: number): string {
 interface AudioPlayerProps {
   src?: string;
   trackTitle?: string;
+  externalPlaying?: boolean;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
-export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
+export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -30,7 +32,7 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     if (!audio) return;
     const onTime = () => setCurrentTime(audio.currentTime);
     const onMeta = () => setDuration(audio.duration);
-    const onEnd = () => setPlaying(false);
+    const onEnd = () => { setPlaying(false); onPlayingChange?.(false); };
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onMeta);
     audio.addEventListener("ended", onEnd);
@@ -46,15 +48,30 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     if (!audio || !src) return;
     audio.src = src;
     audio.load();
-    audio.play().then(() => setPlaying(true)).catch(() => {});
+    audio.play().then(() => { setPlaying(true); onPlayingChange?.(true); }).catch(() => {});
   }, [src]);
+
+  // Sync with external playing state (from briefing card pause)
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || externalPlaying === undefined) return;
+    if (externalPlaying && audio.paused && audio.src) {
+      audio.play().catch(() => {});
+      setPlaying(true);
+    } else if (!externalPlaying && !audio.paused) {
+      audio.pause();
+      setPlaying(false);
+    }
+  }, [externalPlaying]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) audio.pause(); else audio.play();
-    setPlaying(!playing);
-  }, [playing]);
+    const next = !playing;
+    if (next) audio.play(); else audio.pause();
+    setPlaying(next);
+    onPlayingChange?.(next);
+  }, [playing, onPlayingChange]);
 
   const skip = useCallback((seconds: number) => {
     const audio = audioRef.current;

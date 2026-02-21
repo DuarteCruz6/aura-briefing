@@ -1,4 +1,4 @@
-import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard } from "lucide-react";
+import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard, Crown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
@@ -15,7 +15,10 @@ interface BriefingCardProps {
   index: number;
   audioUrl: string;
   isPremium: boolean;
+  isCurrentlyPlaying?: boolean;
   onPlay?: (audioUrl: string, title: string) => void;
+  onPause?: () => void;
+  onPremiumClick?: () => void;
 }
 
 function getConfidenceColor(c: number) {
@@ -24,7 +27,7 @@ function getConfidenceColor(c: number) {
   return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
 }
 
-export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, onPlay }: BriefingCardProps) {
+export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, onPlay, onPause, onPremiumClick }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
@@ -87,20 +90,22 @@ export function BriefingCard({ title, description, duration, topics, confidence,
 
         {/* Right: actions */}
         <div className="flex items-center gap-2 shrink-0">
-          {isPremium && (
-            <motion.button
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              onClick={(e) => {
-                e.stopPropagation();
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPremium) {
                 setVideoOpen(true);
-              }}
-              className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/15"
-              title="Turn into video"
-            >
-              <Clapperboard className="w-5 h-5" />
-            </motion.button>
-          )}
+              } else {
+                onPremiumClick?.();
+              }
+            }}
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-primary/15 ${isPremium ? "hover:text-primary" : "hover:text-amber-500"}`}
+            title={isPremium ? "Turn into video" : "Premium feature"}
+          >
+            {isPremium ? <Clapperboard className="w-5 h-5" /> : <Crown className="w-5 h-5" />}
+          </motion.button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -117,11 +122,19 @@ export function BriefingCard({ title, description, duration, topics, confidence,
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onPlay?.(audioUrl, title);
+              if (isCurrentlyPlaying) {
+                onPause?.();
+              } else {
+                onPlay?.(audioUrl, title);
+              }
             }}
             className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-200"
           >
-            <Play className="w-5 h-5 ml-0.5 fill-primary-foreground" />
+            {isCurrentlyPlaying ? (
+              <Pause className="w-5 h-5 fill-primary-foreground" />
+            ) : (
+              <Play className="w-5 h-5 ml-0.5 fill-primary-foreground" />
+            )}
           </button>
         </div>
       </div>

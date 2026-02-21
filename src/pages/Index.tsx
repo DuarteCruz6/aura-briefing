@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { MessageSquare, Crown } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
@@ -14,7 +14,19 @@ const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
-  const [isPremium, setIsPremium] = useState(() => localStorage.getItem("briefcast_trial") === "active");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPremium, setIsPremium] = useState(() => {
+    const trial = localStorage.getItem("briefcast_trial");
+    if (trial !== "active") return false;
+    const start = localStorage.getItem("briefcast_trial_start");
+    if (!start) { localStorage.removeItem("briefcast_trial"); return false; }
+    if (Date.now() - new Date(start).getTime() > 7 * 24 * 60 * 60 * 1000) {
+      localStorage.removeItem("briefcast_trial");
+      localStorage.removeItem("briefcast_trial_start");
+      return false;
+    }
+    return true;
+  });
   const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
 
   // Re-check premium + frequency when popup closes or page focuses
@@ -37,6 +49,11 @@ const Index = () => {
 
   const handlePlay = useCallback((audioUrl: string, title: string) => {
     setCurrentTrack({ src: audioUrl, title });
+    setIsPlaying(true);
+  }, []);
+
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
   }, []);
 
   // Filter briefings based on frequency
@@ -99,17 +116,22 @@ const Index = () => {
                   {...b}
                   index={i}
                   isPremium={isPremium}
+                  isCurrentlyPlaying={isPlaying && currentTrack?.title === b.title}
                   onPlay={handlePlay}
+                  onPause={handlePause}
+                  onPremiumClick={() => setPremiumOpen(true)}
                 />
               ))}
             </div>
 
-            <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} />
+            <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} onTrialActivated={() => setIsPremium(true)} />
           </div>
         </div>
         <AudioPlayer
           src={currentTrack?.src}
           trackTitle={currentTrack?.title}
+          externalPlaying={isPlaying}
+          onPlayingChange={setIsPlaying}
         />
       </main>
 
