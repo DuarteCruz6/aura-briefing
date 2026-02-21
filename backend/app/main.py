@@ -22,6 +22,7 @@ from app.models.database import (
     FetchFrequency,
     Source,
     SourceType,
+    User,
     UserTopicPreference,
 )
 
@@ -65,6 +66,14 @@ class PreferenceSourceRequest(BaseModel):
 class PreferenceTopicRequest(BaseModel):
     """Add a general topic preference (not URL-based)."""
     topic: str
+
+
+class UserCreateRequest(BaseModel):
+    """Create a new user (e.g. from OAuth or signup)."""
+    google_id: str
+    email: str
+    name: str | None = None
+    avatar_url: str | None = None
 
 
 @asynccontextmanager
@@ -304,6 +313,78 @@ async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(ge
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"summary": summary}
+
+
+## ─── User CRUD ─────────────────────────────────────────────────────────────
+
+@app.post("/users", status_code=201)
+def create_user(body: UserCreateRequest, db: Session = Depends(get_db)):
+    """Create a new user. Requires google_id and email (e.g. from OAuth or signup)."""
+    google_id = (body.google_id or "").strip()
+    email = (body.email or "").strip()
+    if not google_id:
+        raise HTTPException(status_code=400, detail="google_id is required")
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    existing = db.query(User).filter(User.google_id == google_id).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="A user with this google_id already exists",
+        )
+
+    user = User(
+        google_id=google_id,
+        email=email,
+        name=body.name.strip() if body.name else None,
+        avatar_url=body.avatar_url.strip() if body.avatar_url else None,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "google_id": user.google_id,
+        "email": user.email,
+        "name": user.name,
+        "avatar_url": user.avatar_url,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+@app.get("/users")
+def list_users(db: Session = Depends(get_db)):
+    """List all users (e.g. for admin or debugging)."""
+    rows = db.query(User).order_by(User.created_at.desc()).all()
+    return [
+        {
+            "id": u.id,
+            "google_id": u.google_id,
+            "email": u.email,
+            "name": u.name,
+            "avatar_url": u.avatar_url,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in rows
+    ]
+
+
+@app.get("/users/{user_id}")
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    """Get a single user by id."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": user.id,
+        "google_id": user.google_id,
+        "email": user.email,
+        "name": user.name,
+        "avatar_url": user.avatar_url,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
 
 
 ## ─── Source CRUD ───────────────────────────────────────────────────────────
