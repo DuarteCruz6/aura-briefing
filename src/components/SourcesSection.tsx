@@ -14,15 +14,38 @@ interface LocalSource {
 const STORAGE_KEY = "briefcast_sources";
 
 const platforms = [
-  { id: "youtube", label: "YouTube", icon: Youtube, baseUrl: "https://youtube.com/", placeholder: "@channel or channel-name", color: "text-red-500" },
-  { id: "x", label: "X / Twitter", icon: Twitter, baseUrl: "https://x.com/", placeholder: "username", color: "text-foreground" },
-  { id: "linkedin", label: "LinkedIn", icon: Linkedin, baseUrl: "https://linkedin.com/in/", placeholder: "profile-name", color: "text-blue-500" },
+  {
+    id: "youtube",
+    label: "YouTube",
+    icon: Youtube,
+    baseUrl: "https://youtube.com/@",
+    placeholder: "channel or channel-name",
+    color: "text-red-500",
+  },
+  {
+    id: "x",
+    label: "X / Twitter",
+    icon: Twitter,
+    baseUrl: "https://x.com/",
+    placeholder: "username",
+    color: "text-foreground",
+  },
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    icon: Linkedin,
+    baseUrl: "https://linkedin.com/in/",
+    placeholder: "profile-name",
+    color: "text-blue-500",
+  },
 ] as const;
 
 function loadSources(): LocalSource[] {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function saveSources(sources: LocalSource[]) {
@@ -35,7 +58,9 @@ export const SourcesSection = () => {
   const [sources, setSources] = useState<LocalSource[]>(loadSources);
   const { addFavourite, removeFavourite, isFavourite } = useFavourites();
 
-  useEffect(() => { saveSources(sources); }, [sources]);
+  useEffect(() => {
+    saveSources(sources);
+  }, [sources]);
 
   const handleAdd = () => {
     const trimmed = sourceUrl.trim().replace(/^\/+/, "");
@@ -45,7 +70,10 @@ export const SourcesSection = () => {
       toast.error("You're already following this source");
       return;
     }
-    setSources((prev) => [{ id: crypto.randomUUID(), type: activePlatform, url: fullUrl, addedAt: new Date().toISOString() }, ...prev]);
+    setSources((prev) => [
+      { id: crypto.randomUUID(), type: activePlatform, url: fullUrl, addedAt: new Date().toISOString() },
+      ...prev,
+    ]);
     setSourceUrl("");
     toast.success("Source added!");
   };
@@ -61,7 +89,13 @@ export const SourcesSection = () => {
       removeFavourite(favId, "source");
       toast.success("Removed from favourites");
     } else {
-      addFavourite({ id: favId, type: "source", label: source.url.split("/").pop() || source.url, url: source.url, platform: source.type });
+      addFavourite({
+        id: favId,
+        type: "source",
+        label: source.url.split("/").pop() || source.url,
+        url: source.url,
+        platform: source.type,
+      });
       toast.success("Added to favourites");
     }
   };
@@ -70,8 +104,15 @@ export const SourcesSection = () => {
   const filteredSources = sources.filter((s) => s.type === activePlatform);
 
   return (
-    <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-12">
-      <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">Follow Sources</h2>
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25 }}
+      className="mb-12"
+    >
+      <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">
+        Follow Sources
+      </h2>
 
       {/* Platform tabs */}
       <div className="flex gap-2 mb-6">
@@ -100,7 +141,9 @@ export const SourcesSection = () => {
       {/* Add source */}
       <div className="flex gap-3 mb-6">
         <div className="flex flex-1 h-10 rounded-lg bg-secondary/50 border border-border/50 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary/50 transition-all overflow-hidden">
-          <span className="flex items-center pl-3 text-sm text-muted-foreground whitespace-nowrap select-none">{platformMeta.baseUrl}</span>
+          <span className="flex items-center pl-3 text-sm text-muted-foreground whitespace-nowrap select-none">
+            {platformMeta.baseUrl}
+          </span>
           <input
             type="text"
             value={sourceUrl}
@@ -123,7 +166,9 @@ export const SourcesSection = () => {
       {filteredSources.length === 0 ? (
         <div className="glass-panel rounded-xl border border-border/20 p-8 text-center">
           <platformMeta.icon className={`w-8 h-8 mx-auto mb-3 ${platformMeta.color} opacity-40`} />
-          <p className="text-sm text-muted-foreground">No {platformMeta.label} sources yet. Paste a link above to start following.</p>
+          <p className="text-sm text-muted-foreground">
+            No {platformMeta.label} sources yet. Paste a link above to start following.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -141,13 +186,27 @@ export const SourcesSection = () => {
                 >
                   <Icon className={`w-5 h-5 ${platformMeta.color} shrink-0`} />
                   <p className="flex-1 text-sm font-medium text-foreground truncate">{source.url}</p>
-                  <button onClick={() => toggleFavSource(source)} className="transition-colors" title={faved ? "Remove from favourites" : "Add to favourites"}>
-                    <Heart className={`w-4 h-4 ${faved ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                  <button
+                    onClick={() => toggleFavSource(source)}
+                    className="transition-colors"
+                    title={faved ? "Remove from favourites" : "Add to favourites"}
+                  >
+                    <Heart
+                      className={`w-4 h-4 ${faved ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`}
+                    />
                   </button>
-                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
                     <ExternalLink className="w-4 h-4" />
                   </a>
-                  <button onClick={() => handleDelete(source.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                  <button
+                    onClick={() => handleDelete(source.id)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </motion.div>
