@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # LLM (Gemini)
     gemini_api_key: str = ""
 
+    # ElevenLabs (transcription)
+    elevenlabs_api_key: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
