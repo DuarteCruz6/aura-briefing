@@ -973,7 +973,8 @@ async def generate_personal_briefing(
     1. Latest post from each account the user follows (/sources/latest)
     2. One article per topic interest (/feed/by-topics with max_per_topic=1)
     3. A ~3-minute summary of all that content (/summaries/multi-url logic)
-    Returns the briefing text and the URLs that were included.
+    4. Podcast audio (WAV) via Gemini TTS - same as /summaries/multi-url
+    Returns the briefing WAV file. Headers: X-Duration-Seconds, X-Urls-Count.
     """
     from app.services.feed_by_topics import fetch_articles_by_topics
     from app.services.latest_from_sources import fetch_latest_for_sources
@@ -1026,12 +1027,34 @@ async def generate_personal_briefing(
     if not (summary or "").strip():
         raise HTTPException(status_code=503, detail="No summary generated")
 
-    return {
-        "summary": summary,
-        "urls_count": len(urls),
-        "sources_used": sources_used,
-        "topics_used": topics_used,
-    }
+    # Generate podcast audio (same as /summaries/multi-url)
+    from app.models.podcast_generation import text_to_audio
+    from app.models.podcast_generation.tts_generator import DEFAULT_MODEL_ID, DEFAULT_VOICE_ID
+
+    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
+    try:
+        path_str, duration_seconds = await asyncio.to_thread(
+            text_to_audio,
+            summary,
+            output_path,
+            voice_id=DEFAULT_VOICE_ID,
+            model_id=DEFAULT_MODEL_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return FileResponse(
+        path_str,
+        media_type="audio/wav",
+        filename="briefing.wav",
+        headers={
+            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+            "X-Urls-Count": str(len(urls)),
+        },
+    )
 
 
 @app.get("/feed/by-topics")
