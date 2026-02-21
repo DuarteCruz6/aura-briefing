@@ -97,17 +97,20 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const { content } = await api.chat([...messages, userMsg]);
+      setMessages((prev) => [...prev, { role: "assistant", content }]);
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Based on today's briefing, here's what I found about "${text}". The latest data suggests significant developments in this area with multiple sources confirming the trend.`,
-          sources: ["reuters.com", "ft.com", "arxiv.org"],
+          content: err instanceof Error ? err.message : "Something went wrong. Please try again.",
         },
       ]);
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (

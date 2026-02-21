@@ -52,6 +52,15 @@ class PodcastFromUrlsRequest(BaseModel):
     model_id: str | None = None
 
 
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
 class VideoGenerateRequest(BaseModel):
     """Generate a video briefing: TTS from summary + simple visual (gradient + title). Premium only."""
     title: str
@@ -806,6 +815,61 @@ def get_briefings(
             "error": r.get("error"),
         })
     return {"briefings": briefings}
+
+
+@app.post("/chat")
+def post_chat(
+    body: ChatRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    AI assistant chat using Gemini. Send conversation history; returns the assistant reply.
+    Optional context: recent briefings from the user's sources are injected so the assistant
+    can answer questions about "today's stories".
+    """
+    if not getattr(settings, "gemini_api_key", None) or not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY is not set; AI assistant unavailable",
+        )
+    if not body.messages:
+        raise HTTPException(status_code=400, detail="messages is required")
+    last = body.messages[-1]
+    if last.role != "user":
+        raise HTTPException(status_code=400, detail="Last message must be from the user")
+
+    # Load user's briefings as context
+    sources = (
+        db.query(Source)
+        .filter(Source.user_id == user_id)
+        .order_by(Source.created_at.desc())
+        .all()
+    )
+    context_briefings: list[dict] = []
+    if sources:
+        from app.services.latest_from_sources import fetch_latest_for_sources
+
+        results = fetch_latest_for_sources(sources)
+        for r in results:
+            latest = r.get("latest") or {}
+            context_briefings.append({
+                "title": latest.get("title") or "Latest update",
+                "error": r.get("error"),
+            })
+
+    messages = [{"role": m.role, "content": m.content or ""} for m in body.messages]
+    try:
+        from app.services.assistant_chat import chat as assistant_chat
+
+        content = assistant_chat(
+            messages,
+            context_briefings=context_briefings,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"content": content}
 
 
 # Platform name from API -> SourceType
