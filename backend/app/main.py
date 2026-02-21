@@ -212,10 +212,11 @@ def debug_tables():
 
 
 @app.get("/tables/{table_name}")
-def debug_table_contents(table_name: str, limit: int = 100):
+def debug_table_contents(table_name: str, limit: int = 100, db: Session = Depends(get_db)):
     """
     Return the contents of a table as a list of rows (dicts).
     Table name is whitelisted. Use query param limit (default 100, max 1000).
+    For user_topic_preferences, rows are enriched with user_email and user_name so you can see which user prefers what.
     """
     allowed = _get_table_names()
     if table_name not in allowed:
@@ -224,6 +225,29 @@ def debug_table_contents(table_name: str, limit: int = 100):
             detail=f"Unknown table. Allowed: {', '.join(allowed)}",
         )
     cap = min(max(1, limit), 1000)
+
+    if table_name == "user_topic_preferences":
+        # Enrich with user identity so the table shows which user prefers what
+        prefs = (
+            db.query(UserTopicPreference, User.email, User.name)
+            .join(User, UserTopicPreference.user_id == User.id)
+            .order_by(UserTopicPreference.created_at.desc())
+            .limit(cap)
+            .all()
+        )
+        rows = []
+        for pref, email, name in prefs:
+            row = {
+                "id": pref.id,
+                "user_id": pref.user_id,
+                "user_email": email,
+                "user_name": name,
+                "topic": pref.topic,
+                "created_at": pref.created_at.isoformat() if pref.created_at else None,
+            }
+            rows.append(row)
+        return {"table": table_name, "limit": cap, "rows": rows}
+
     quoted = _quote_table(table_name)
     with engine.connect() as conn:
         result = conn.execute(
