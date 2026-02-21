@@ -7,11 +7,6 @@ import { api } from "../lib/api";
 import { ArrowLeft, Check, Loader2, Wifi, WifiOff, Crown, XCircle } from "lucide-react";
 import { toast } from "../hooks/use-toast";
 
-const briefingLengths = [
-  { value: 3, label: "3 min", desc: "Quick headlines" },
-  { value: 7, label: "7 min", desc: "Key stories" },
-  { value: 12, label: "12 min", desc: "Deep dive" },
-];
 const briefingFrequencies = [
   { value: "daily", label: "Daily", desc: "Every morning" },
   { value: "weekly", label: "Weekly", desc: "Monday digest" },
@@ -28,7 +23,6 @@ const Settings = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [briefingLength, setBriefingLength] = useState(7);
   const [voiceStyle, setVoiceStyle] = useState("professional");
   const [frequency, setFrequency] = useState("daily");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
@@ -75,15 +69,12 @@ const Settings = () => {
         const f = s.briefing_frequency || "daily";
         setFrequency(f);
         localStorage.setItem("briefcast_frequency", f);
-        const len = s.briefing_length != null ? parseInt(s.briefing_length, 10) : 7;
-        if ([3, 7, 12].includes(len)) setBriefingLength(len);
         const vs = s.voice_style || "professional";
         if (["professional", "conversational", "energetic", "minimal"].includes(vs)) setVoiceStyle(vs);
         setSettingsLoaded(true);
       })
       .catch(() => {
         setFrequency("daily");
-        setBriefingLength(7);
         setVoiceStyle("professional");
         setSettingsLoaded(true);
         toast({ title: "Could not load settings", description: "Using default values.", variant: "destructive" });
@@ -187,41 +178,6 @@ const Settings = () => {
             </Section>
           ) : (
             <>
-          <Section title="Briefing Length">
-            <div className="grid grid-cols-3 gap-3">
-              {briefingLengths.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    const prev = briefingLength;
-                    setBriefingLength(opt.value);
-                    api
-                      .updateSettings({ briefing_length: opt.value })
-                      .then(() => {
-                        toast({ title: "Settings saved", description: "Your preference has been saved." });
-                      })
-                      .catch(() => {
-                        setBriefingLength(prev);
-                        toast({
-                          title: "Settings not saved",
-                          description: "Could not save to the server. Check your connection.",
-                          variant: "destructive",
-                        });
-                      });
-                  }}
-                  className={`glass-panel rounded-xl p-4 text-center transition-all border ${
-                    briefingLength === opt.value
-                      ? "border-primary/50 bg-primary/10"
-                      : "border-white/[0.06] hover:border-white/[0.12]"
-                  }`}
-                >
-                  <p className="font-display font-bold text-lg text-foreground">{opt.label}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{opt.desc}</p>
-                </button>
-              ))}
-            </div>
-          </Section>
-
           <Section title="Briefing Frequency">
             <div className="grid grid-cols-3 gap-3">
               {briefingFrequencies.map((opt) => (

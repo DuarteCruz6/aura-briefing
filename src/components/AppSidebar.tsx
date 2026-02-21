@@ -41,23 +41,20 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
       className="h-full hidden sm:flex flex-col border-r border-border/50 bg-sidebar py-6 overflow-hidden flex-shrink-0"
     >
       {/* Logo */}
-      <div className="px-4 mb-8 flex items-center justify-between">
+      <div className="px-4 mb-8 flex items-center gap-2">
+        <img src={logo} alt="Unscrolling" className="w-10 h-10 object-contain flex-shrink-0" />
         <AnimatePresence mode="wait">
           {!collapsed && (
-            <motion.div
+            <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex items-center gap-2"
+              className="font-display font-semibold text-foreground text-lg whitespace-nowrap"
             >
-              <img src={logo} alt="Unscrolling" className="w-10 h-10 object-contain" />
-              <span className="font-display font-semibold text-foreground text-lg">Unscrolling</span>
-            </motion.div>
+              Unscrolling
+            </motion.span>
           )}
         </AnimatePresence>
-        {collapsed && (
-          <img src={logo} alt="Unscrolling" className="w-10 h-10 object-contain mx-auto" />
-        )}
       </div>
 
       {/* Nav items */}
