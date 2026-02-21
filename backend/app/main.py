@@ -979,7 +979,7 @@ async def generate_personal_briefing(
     4. Podcast audio (WAV) via Gemini TTS - same as /summaries/multi-url
     Returns the briefing WAV file. Headers: X-Duration-Seconds, X-Urls-Count.
     """
-    from app.services.feed_by_topics import fetch_articles_by_topics
+    from app.services.feed_by_topics import fetch_articles_for_topic
     from app.services.latest_from_sources import fetch_latest_for_sources
     from app.services.multi_url_summary import get_multi_url_summary
 
@@ -1008,18 +1008,22 @@ async def generate_personal_briefing(
                         sources_used.append({"url": u, "title": latest.get("title"), "source_type": r.get("source_type")})
         logger.info("Briefing: phase 1 done, urls=%s", len(urls))
 
-        # 2) One article per topic interest
+        # 2) One article per topic interest (guarantee at least one per topic when available)
         logger.info("Briefing: phase 2 - fetching articles by topics")
         topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
         if topics:
             per_topic = min(max(1, max_per_topic), 5)
-            topic_results = fetch_articles_by_topics(topics, max_per_topic=per_topic, hl=hl, gl=gl)
-            for tr in topic_results:
-                for art in (tr.get("articles") or [])[:per_topic]:
+            for topic in topics:
+                topic = (topic or "").strip()
+                if not topic:
+                    continue
+                articles = fetch_articles_for_topic(topic, max_articles=5, hl=hl, gl=gl)
+                for art in articles[:per_topic]:
                     u = (art.get("url") or "").strip()
                     if u and u not in urls:
                         urls.append(u)
-                        topics_used.append({"url": u, "title": art.get("title"), "topic": tr.get("topic")})
+                        topics_used.append({"url": u, "title": art.get("title"), "topic": topic})
+                        break  # one per topic
         logger.info("Briefing: phase 2 done, total urls=%s", len(urls))
 
         if not urls:
