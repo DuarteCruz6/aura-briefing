@@ -10,7 +10,7 @@ interface AppSidebarProps {
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Compass, label: "Explore", path: "/explore" },
-  { icon: Bookmark, label: "Bookmarks", path: "/" },
+  { icon: Bookmark, label: "Bookmarks", path: "/bookmarks" },
 ];
 
 const bottomItems = [

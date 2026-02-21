@@ -1,5 +1,6 @@
-import { Play, Clock, TrendingUp, Globe, Cpu, MapPin } from "lucide-react";
+import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark } from "lucide-react";
 import { motion } from "framer-motion";
+import { useBookmarks } from "@/hooks/useBookmarks";
 
 interface BriefingCardProps {
   title: string;
@@ -12,6 +13,9 @@ interface BriefingCardProps {
 }
 
 export function BriefingCard({ title, description, duration, topics, confidence, icon, index }: BriefingCardProps) {
+  const { isBookmarked, toggleBookmark } = useBookmarks();
+  const bookmarked = isBookmarked(title);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -29,9 +33,24 @@ export function BriefingCard({ title, description, duration, topics, confidence,
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
         </div>
-        <button className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <Play className="w-4 h-4 ml-0.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleBookmark({ title, description, duration, topics, confidence });
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+              bookmarked
+                ? "bg-primary/15 text-primary"
+                : "bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
+            }`}
+          >
+            <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-primary" : ""}`} />
+          </button>
+          <button className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <Play className="w-4 h-4 ml-0.5" />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
