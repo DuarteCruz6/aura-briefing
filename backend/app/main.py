@@ -282,14 +282,14 @@ PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 @app.post("/podcast/generate")
 async def generate_podcast(body: PodcastGenerateRequest):
     """
-    Generate podcast audio from script text using ElevenLabs TTS.
-    Returns the MP3 file. Requires ELEVENLABS_API_KEY_TTS.
+    Generate podcast audio from script text using Gemini TTS.
+    Returns a WAV file. Requires GEMINI_API_KEY.
     """
-    if not os.getenv("ELEVENLABS_API_KEY_TTS"):
+    if not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(
             status_code=503,
-            detail="ELEVENLABS_API_KEY_TTS not set; podcast generation unavailable",
-        )   
+            detail="GEMINI_API_KEY not set; podcast generation unavailable",
+        )
     from app.models.podcast_generation import text_to_audio
     from app.models.podcast_generation.tts_generator import (
         DEFAULT_MODEL_ID,
@@ -301,7 +301,7 @@ async def generate_podcast(body: PodcastGenerateRequest):
         raise HTTPException(status_code=400, detail="text is required and cannot be empty")
 
     PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp3"
+    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
 
     # Treat placeholder "string" (e.g. from OpenAPI/Swagger) as unset
     voice_id = body.voice_id if (body.voice_id and body.voice_id.strip().lower() != "string") else None
@@ -318,36 +318,17 @@ async def generate_podcast(body: PodcastGenerateRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
-        from elevenlabs.core.api_error import ApiError as ElevenLabsApiError
+        raise HTTPException(status_code=502, detail=str(e))
 
-        if isinstance(e, ElevenLabsApiError):
-            status = getattr(e, "status_code", 502)
-            body = getattr(e, "body", None) or {}
-            detail_obj = body.get("detail", body) if isinstance(body, dict) else {}
-            msg = (
-                detail_obj.get("message")
-                if isinstance(detail_obj, dict)
-                else str(detail_obj) if detail_obj else None
-            )
-            if status == 401:
-                detail = (
-                    "ElevenLabs rejected the request: free tier may be disabled or account restricted (e.g. proxy/VPN or usage limits). Use a paid subscription or a different API key."
-                    if not msg
-                    else msg
-                )
-            elif status == 404 and "voice" in (msg or "").lower():
-                detail = msg or "The requested voice was not found."
-            elif status == 429:
-                detail = msg or "ElevenLabs rate limit exceeded. Try again later."
-            else:
-                detail = msg or f"ElevenLabs TTS error (status {status})."
-            raise HTTPException(status_code=502, detail=detail)
-        raise
+    # Gemini TTS outputs WAV
+    is_wav = path_str.lower().endswith(".wav")
+    media_type = "audio/wav" if is_wav else "audio/mpeg"
+    filename = "podcast.wav" if is_wav else "podcast.mp3"
 
     return FileResponse(
         path_str,
-        media_type="audio/mpeg",
-        filename="podcast.mp3",
+        media_type=media_type,
+        filename=filename,
         headers={
             "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
         },
