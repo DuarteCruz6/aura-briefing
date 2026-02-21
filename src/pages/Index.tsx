@@ -126,7 +126,7 @@ const Index = () => {
               </div>
             </div>
 
-            <TodaysBriefing frequency={frequency} onPlay={handlePlay} />
+            <TodaysBriefing frequency={frequency} onPlay={handlePlay} isPlaying={isPlaying} currentTrackTitle={currentTrack?.title} onPause={handlePause} />
 
             <div className="space-y-3">
               <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
