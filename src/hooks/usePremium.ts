@@ -12,7 +12,6 @@ function getPremiumState(): PremiumState {
   if (!stored) return { isPremium: false, trialStartedAt: null };
   const parsed = JSON.parse(stored) as PremiumState;
   
-  // Check if trial has expired (7 days)
   if (parsed.trialStartedAt && !parsed.isPremium) {
     const trialStart = new Date(parsed.trialStartedAt).getTime();
     const now = Date.now();

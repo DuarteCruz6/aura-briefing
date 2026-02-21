@@ -27,33 +27,6 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
     });
   };
 
-  // Don't show banner if already premium
-  if (isPremium && !showPopup) {
-    return (
-      <>
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="glass-panel p-4 mt-8 relative overflow-hidden"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
-              <Crown className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-foreground">Premium Active</p>
-              <p className="text-xs text-muted-foreground">
-                {trialDaysLeft !== null ? `${trialDaysLeft} days left in trial` : "Full access"}
-              </p>
-            </div>
-          </div>
-        </motion.section>
-        {renderPopup()}
-      </>
-    );
-  }
-
   function renderPopup() {
     return (
       <AnimatePresence>
@@ -152,6 +125,32 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
     );
   }
 
+  if (isPremium) {
+    return (
+      <>
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="glass-panel p-4 mt-8 relative overflow-hidden"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Crown className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground">Premium Active</p>
+              <p className="text-xs text-muted-foreground">
+                {trialDaysLeft !== null ? `${trialDaysLeft} days left in trial` : "Full access"}
+              </p>
+            </div>
+          </div>
+        </motion.section>
+        {renderPopup()}
+      </>
+    );
+  }
+
   return (
     <>
       <motion.section
@@ -162,7 +161,6 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
         onClick={() => onPopupChange(true)}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-primary/10 pointer-events-none group-hover:from-primary/20 group-hover:to-primary/20 transition-all duration-500" />
-        
         <div className="relative flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
             <Video className="w-7 h-7 text-primary" />
@@ -184,7 +182,6 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
           </motion.div>
         </div>
       </motion.section>
-
       {renderPopup()}
     </>
   );
