@@ -1,13 +1,20 @@
 import asyncio
 import os
-from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
+from starlette.responses import FileResponse
+from starlette.staticfiles import StaticFiles
+
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine, init_db
+
+# Frontend static files (built and copied in Docker)
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 class TranscribeRequest(BaseModel):
@@ -75,3 +82,19 @@ async def transcribe_youtube(body: TranscribeRequest):
     if result is None:
         raise HTTPException(status_code=502, detail="Extraction or transcription failed")
     return result
+
+
+# Serve frontend static files when running in Docker (static dir present)
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str, request: Request):
+        """Serve index.html for non-API GET requests (SPA fallback)."""
+        if request.method != "GET":
+            raise HTTPException(status_code=404, detail="Not found")
+        # If it looks like a static file, try to serve it (e.g. favicon, source maps)
+        path = STATIC_DIR / full_path
+        if path.is_file():
+            return FileResponse(path)
+        return FileResponse(STATIC_DIR / "index.html")
