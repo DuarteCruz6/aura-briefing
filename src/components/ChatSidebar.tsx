@@ -1,7 +1,8 @@
-import { Send, X, ExternalLink } from "lucide-react";
+import { Send, X, ExternalLink, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.png";
+import { api } from "../lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -16,26 +17,79 @@ const initialMessages: Message[] = [
   },
 ];
 
+function isUrl(text: string): boolean {
+  const t = text.trim();
+  return t.startsWith("http://") || t.startsWith("https://");
+}
+
+function formatSummary(summary: unknown): string {
+  if (summary == null) return "No summary available.";
+  if (typeof summary === "string") return summary;
+  if (typeof summary === "object" && summary !== null) {
+    const o = summary as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof o.title === "string") parts.push(o.title);
+    if (typeof o.channel === "string") parts.push(`Channel: ${o.channel}`);
+    if (typeof o.description === "string" && o.description) parts.push(o.description);
+    if (typeof o.text === "string" && o.text) parts.push(o.text);
+    if (typeof o.summary === "string") parts.push(o.summary);
+    if (parts.length) return parts.join("\n\n");
+  }
+  return JSON.stringify(summary);
+}
+
 export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userMsg: Message = { role: "user", content: input };
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text) return;
+    const userMsg: Message = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
-    // Simulated response
+    if (isUrl(text)) {
+      setLoading(true);
+      try {
+        const { source_url, summary } = await api.getOrExtractSummary(text);
+        const content = formatSummary(summary);
+        const sourceHost = source_url ? new URL(source_url).hostname : undefined;
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content,
+            sources: source_url ? [source_url] : sourceHost ? [sourceHost] : undefined,
+          },
+        ]);
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: err instanceof Error ? err.message : "Failed to get summary for this URL.",
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Fallback: simulated response for non-URL questions
+    setLoading(true);
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Based on today's briefing, here's what I found about "${input}". The latest data suggests significant developments in this area with multiple sources confirming the trend.`,
+          content: `Based on today's briefing, here's what I found about "${text}". The latest data suggests significant developments in this area with multiple sources confirming the trend.`,
           sources: ["reuters.com", "ft.com", "arxiv.org"],
         },
       ]);
+      setLoading(false);
     }, 800);
   };
 
@@ -82,11 +136,13 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
                       {msg.sources.map((s) => (
                         <a
                           key={s}
-                          href="#"
+                          href={s.startsWith("http") ? s : `https://${s}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="flex items-center gap-1 text-xs text-primary hover:underline"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          {s}
+                          {s.startsWith("http") ? new URL(s).hostname : s}
                         </a>
                       ))}
                     </div>
@@ -108,9 +164,10 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
               />
               <button
                 onClick={handleSend}
-                className="text-primary hover:text-primary/80 transition-colors"
+                disabled={loading}
+                className="text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
               >
-                <Send className="w-4 h-4" />
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
           </div>

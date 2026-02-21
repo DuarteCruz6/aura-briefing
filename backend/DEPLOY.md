@@ -11,11 +11,11 @@
 4. **Variables** (Railway dashboard → Variables): add at least:
    - `GEMINI_API_KEY` – from [Google AI Studio](https://aistudio.google.com/apikey)
    - `ELEVENLABS_API_KEY` – from [ElevenLabs](https://elevenlabs.io) (needed for YouTube transcription)
-   - `CORS_ORIGINS` – your frontend URL(s), comma-separated, e.g. `https://your-app.vercel.app`
+   - `CORS_ORIGINS` – `https://aurora-brief.lovable.app,http://localhost:8080` (Lovable app + local dev).
 
 5. **Deploy**: push to the connected branch or trigger a deploy from the dashboard. Railway will build the Docker image and run it; the healthcheck hits `/health`.
 
-6. **URL**: Use the generated Railway URL (e.g. `https://your-service.up.railway.app`) as the API base in your frontend.
+6. **URL**: Frontend at https://aurora-brief.lovable.app uses API at https://aura-briefing-production.up.railway.app (default in code). In Lovable you can set `VITE_API_URL` to that Railway URL or leave unset.
 
 7. **If you get 502 "connection refused"**: In the service **Settings** → **Networking**, check **Target port**. Leave it blank so Railway uses the `PORT` it injects (often 8080), or set it to match the port shown in your **Deploy logs** (e.g. "Starting on 0.0.0.0:8080"). The app must listen on that port.
 

@@ -1,7 +1,8 @@
 /**
  * Backend API client. Base URL is set via VITE_API_URL:
- * - Development: http://localhost:8000 (frontend on 8080, backend on 8000)
- * - Production (served by backend): leave empty for same-origin
+ * - Local dev: VITE_API_URL=http://localhost:8000 (frontend on 8080, backend on 8000)
+ * - Lovable (frontend) + Railway (backend): set VITE_API_URL in Lovable to your Railway API URL,
+ *   or leave unset to use the default below.
  */
 
 const BASE = (import.meta.env.VITE_API_URL ?? "https://aura-briefing-production.up.railway.app").replace(/\/$/, "");
@@ -32,6 +33,36 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail ?? `Transcribe failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  /** GET summary by URL (404 if not stored). */
+  async getSummaryByUrl(
+    sourceUrl: string
+  ): Promise<{ source_url: string; summary: unknown }> {
+    const res = await fetch(
+      url(`/summaries/by-url?${new URLSearchParams({ url: sourceUrl })}`)
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  /** GET or extract summary for a URL (YouTube, article, etc.). */
+  async getOrExtractSummary(
+    sourceUrl: string
+  ): Promise<{ source_url: string; summary: unknown }> {
+    const res = await fetch(url("/summaries/get-or-extract"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: sourceUrl }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Failed: ${res.status}`);
     }
     return res.json();
   },
