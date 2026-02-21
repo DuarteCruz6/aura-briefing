@@ -4,9 +4,12 @@ import { RotatingGlobe } from "./RotatingGlobe";
 
 interface TodaysBriefingProps {
   frequency?: string;
+  onPlay?: (audioUrl: string, title: string) => void;
 }
 
-export function TodaysBriefing({ frequency = "daily" }: TodaysBriefingProps) {
+const BRIEFING_AUDIO = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+export function TodaysBriefing({ frequency = "daily", onPlay }: TodaysBriefingProps) {
   const freqLabel = frequency === "weekly" ? "This Week's" : frequency === "monthly" ? "This Month's" : "Today's";
   const freqDesc = frequency === "weekly"
     ? "Your weekly intelligence digest — top stories from the past 7 days."
@@ -68,6 +71,7 @@ export function TodaysBriefing({ frequency = "daily" }: TodaysBriefingProps) {
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => onPlay?.(BRIEFING_AUDIO, `${freqLabel} Briefing`)}
               className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow flex-shrink-0"
             >
               <motion.div
