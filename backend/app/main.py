@@ -17,7 +17,13 @@ from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import engine, get_db, init_db
-from app.models.database import ExtractedSummary, Source, SourceType, FetchFrequency
+from app.models.database import (
+    ExtractedSummary,
+    FetchFrequency,
+    Source,
+    SourceType,
+    UserTopicPreference,
+)
 
 # Frontend static files (built and copied in Docker)
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -42,6 +48,17 @@ class SourceCreateRequest(BaseModel):
     url: str
     name: str | None = None
     frequency: str = "daily"
+
+
+class PreferenceSourceRequest(BaseModel):
+    """Save a platform + URL as a user preference (stored in sources)."""
+    platform: str  # "youtube", "linkedin", "twitter", "news"
+    url: str
+
+
+class PreferenceTopicRequest(BaseModel):
+    """Add a general topic preference (not URL-based)."""
+    topic: str
 
 
 @asynccontextmanager
@@ -340,6 +357,152 @@ def delete_source(source_id: int, user_id: int = 1, db: Session = Depends(get_db
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
     db.delete(source)
+    db.commit()
+    return {"deleted": True}
+
+
+# Platform name from API -> SourceType
+_PREFERENCE_PLATFORM_MAP = {
+    "youtube": SourceType.YOUTUBE,
+    "linkedin": SourceType.LINKEDIN,
+    "twitter": SourceType.X,
+    "news": SourceType.NEWS,
+}
+
+
+@app.post("/preferences/sources", status_code=201)
+def add_preference_source(
+    body: PreferenceSourceRequest,
+    user_id: int = 1,
+    db: Session = Depends(get_db),
+):
+    """
+    Save a platform + URL as a user preference (account or site to follow).
+    Allowed platforms: youtube, linkedin, twitter, news.
+    Stored in the user's sources with default frequency daily.
+    """
+    platform_key = (body.platform or "").strip().lower()
+    if platform_key not in _PREFERENCE_PLATFORM_MAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid platform: {body.platform}. Must be one of: youtube, linkedin, twitter, news",
+        )
+    url = (body.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+
+    source_type = _PREFERENCE_PLATFORM_MAP[platform_key]
+    existing = db.query(Source).filter(Source.user_id == user_id, Source.url == url).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="This URL is already in your preferences")
+
+    source = Source(
+        user_id=user_id,
+        type=source_type,
+        url=url,
+        name=None,
+        frequency=FetchFrequency.DAILY,
+    )
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+    return {
+        "id": source.id,
+        "platform": source.type.value,
+        "url": source.url,
+        "created_at": source.created_at.isoformat() if source.created_at else None,
+    }
+
+
+@app.get("/preferences/sources")
+def list_preference_sources(user_id: int = 1, db: Session = Depends(get_db)):
+    """List all saved preference sources for the user (same as /sources but keyed as preferences)."""
+    rows = (
+        db.query(Source)
+        .filter(Source.user_id == user_id)
+        .order_by(Source.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "platform": s.type.value,
+            "url": s.url,
+            "name": s.name,
+            "frequency": s.frequency.value,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in rows
+    ]
+
+
+@app.post("/preferences/topics", status_code=201)
+def add_preference_topic(
+    body: PreferenceTopicRequest,
+    user_id: int = 1,
+    db: Session = Depends(get_db),
+):
+    """
+    Add a general topic to the user's preferences (e.g. "AI", "startups", "climate").
+    Not URL-based; stored in user_topic_preferences. Duplicate topics are ignored (409).
+    """
+    topic = (body.topic or "").strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="topic is required")
+
+    existing = (
+        db.query(UserTopicPreference)
+        .filter(UserTopicPreference.user_id == user_id, UserTopicPreference.topic == topic)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="This topic is already in your preferences")
+
+    pref = UserTopicPreference(user_id=user_id, topic=topic)
+    db.add(pref)
+    db.commit()
+    db.refresh(pref)
+    return {
+        "id": pref.id,
+        "topic": pref.topic,
+        "created_at": pref.created_at.isoformat() if pref.created_at else None,
+    }
+
+
+@app.get("/preferences/topics")
+def list_preference_topics(user_id: int = 1, db: Session = Depends(get_db)):
+    """List all topic preferences for the user."""
+    rows = (
+        db.query(UserTopicPreference)
+        .filter(UserTopicPreference.user_id == user_id)
+        .order_by(UserTopicPreference.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "topic": p.topic,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in rows
+    ]
+
+
+@app.delete("/preferences/topics/{topic_id}")
+def delete_preference_topic(
+    topic_id: int,
+    user_id: int = 1,
+    db: Session = Depends(get_db),
+):
+    """Remove a topic from the user's preferences."""
+    pref = (
+        db.query(UserTopicPreference)
+        .filter(UserTopicPreference.id == topic_id, UserTopicPreference.user_id == user_id)
+        .first()
+    )
+    if not pref:
+        raise HTTPException(status_code=404, detail="Topic preference not found")
+    db.delete(pref)
     db.commit()
     return {"deleted": True}
 

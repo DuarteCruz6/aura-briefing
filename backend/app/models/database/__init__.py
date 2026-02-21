@@ -11,6 +11,7 @@ from app.models.database.run_item import RunItem
 from app.models.database.summary import Summary
 from app.models.database.audio import Audio
 from app.models.database.extracted_summary import ExtractedSummary
+from app.models.database.user_topic_preference import UserTopicPreference
 
 __all__ = [
     "Base",
@@ -25,4 +26,5 @@ __all__ = [
     "Summary",
     "Audio",
     "ExtractedSummary",
+    "UserTopicPreference",
 ]

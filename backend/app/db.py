@@ -23,6 +23,6 @@ def get_db():
 
 
 def init_db():
-    from app.models.database import Base, ExtractedSummary  # noqa: F401 - register model
+    from app.models.database import Base, ExtractedSummary, UserTopicPreference  # noqa: F401 - register models
 
     Base.metadata.create_all(bind=engine)

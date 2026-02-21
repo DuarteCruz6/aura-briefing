@@ -23,3 +23,6 @@ class User(Base):
     # Relationships
     sources: Mapped[list["Source"]] = relationship("Source", back_populates="user", cascade="all, delete-orphan")
     runs: Mapped[list["Run"]] = relationship("Run", back_populates="user", cascade="all, delete-orphan")
+    topic_preferences: Mapped[list["UserTopicPreference"]] = relationship(
+        "UserTopicPreference", back_populates="user", cascade="all, delete-orphan"
+    )
