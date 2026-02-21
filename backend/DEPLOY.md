@@ -11,7 +11,7 @@
 4. **Variables** (Railway dashboard → Variables): add at least:
    - `GEMINI_API_KEY` – from [Google AI Studio](https://aistudio.google.com/apikey)
    - `ELEVENLABS_API_KEY` – from [ElevenLabs](https://elevenlabs.io) (needed for YouTube transcription)
-   - `CORS_ORIGINS` – `https://aurora-brief.lovable.app,http://localhost:8080` (Lovable app + local dev).
+   - `CORS_ORIGINS` – your frontend origin(s), e.g. `https://your-app.lovable.app,http://localhost:5173`. If you get **OPTIONS /auth/me 400**, the request origin is not in this list. To allow any origin (e.g. for demos), set `CORS_ORIGINS=*`.
 
 5. **Deploy**: push to the connected branch or trigger a deploy from the dashboard. Railway will build the Docker image and run it; the healthcheck hits `/health`.
 

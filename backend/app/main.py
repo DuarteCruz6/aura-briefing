@@ -133,11 +133,13 @@ def root():
 def health():
     return {"status": "ok"}
 
-# CORS so frontend (e.g. Vite on port 8080) can call the API
-origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+# CORS: set CORS_ORIGINS to your frontend URL(s), or "*" to allow any origin (e.g. for demos).
+_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+_allow_any_origin = _origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[] if _allow_any_origin else _origins,
+    allow_origin_regex=".*" if _allow_any_origin else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
