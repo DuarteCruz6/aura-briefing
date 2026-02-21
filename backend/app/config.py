@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # YouTube Data API v3 (metadata for YouTube; get key at https://console.cloud.google.com/apis/credentials)
     youtube_api_key: str = ""
 
+    # Nitter instance for X/Twitter RSS (e.g. https://nitter.net or https://nitter.mint.lgbt)
+    nitter_base_url: str = "https://nitter.net"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
