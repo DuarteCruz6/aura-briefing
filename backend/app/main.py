@@ -148,9 +148,10 @@ app.add_middleware(
 
 def get_current_user_id(request: Request, db: Session = Depends(get_db)) -> int:
     """Resolve user from X-User-Email header; default to user_id=1 if missing (backward compat)."""
-    email = (request.headers.get("X-User-Email") or "").strip()
-    if not email:
+    raw = (request.headers.get("X-User-Email") or "").strip()
+    if not raw:
         return 1
+    email = raw.lower()  # match auth/me: users are stored with lowercased email
     user = db.query(User).filter(User.email == email).first()
     if user:
         return user.id

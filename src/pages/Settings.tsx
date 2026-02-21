@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
@@ -66,7 +66,7 @@ const Settings = () => {
       .catch(() => setBackendOk(false));
   }, []);
 
-  useEffect(() => {
+  const loadSettings = useCallback(() => {
     api
       .getSettings()
       .then((s) => {
@@ -74,8 +74,14 @@ const Settings = () => {
         setFrequency(f);
         localStorage.setItem("briefcast_frequency", f);
       })
-      .catch(() => {});
+      .catch(() => {
+        toast({ title: "Could not load settings", description: "Using local values.", variant: "destructive" });
+      });
   }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   if (!user) return null;
 
@@ -187,9 +193,23 @@ const Settings = () => {
                 <button
                   key={opt.value}
                   onClick={() => {
+                    const prev = frequency;
                     setFrequency(opt.value);
                     localStorage.setItem("briefcast_frequency", opt.value);
-                    api.updateSettings({ briefing_frequency: opt.value }).catch(() => {});
+                    api
+                      .updateSettings({ briefing_frequency: opt.value })
+                      .then(() => {
+                        toast({ title: "Settings saved", description: "Your preference has been saved." });
+                      })
+                      .catch(() => {
+                        setFrequency(prev);
+                        localStorage.setItem("briefcast_frequency", prev);
+                        toast({
+                          title: "Settings not saved",
+                          description: "Could not save to the server. Check your connection.",
+                          variant: "destructive",
+                        });
+                      });
                   }}
                   className={`glass-panel rounded-xl p-4 text-center transition-all border ${
                     frequency === opt.value
