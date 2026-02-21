@@ -6,7 +6,7 @@ from app.models.database.base import Base
 
 
 class Audio(Base):
-    """TTS-generated podcast audio for a summary (ElevenLabs output)."""
+    """TTS-generated podcast audio for a summary (Gemini TTS output)."""
 
     __tablename__ = "audio"
 
