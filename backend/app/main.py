@@ -177,11 +177,14 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
 
     output_dir = "/tmp/transcribe"
     os.makedirs(output_dir, exist_ok=True)
-    result = await asyncio.to_thread(
-        youtube_url_to_text,
-        url,
-        output_dir,
-    )
+    try:
+        result = await asyncio.to_thread(
+            youtube_url_to_text,
+            url,
+            output_dir,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     if result is None:
         raise HTTPException(status_code=502, detail="Extraction or transcription failed")
 
@@ -227,7 +230,10 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
         raise HTTPException(status_code=400, detail="url is required")
     from app.services import get_or_extract_summary
 
-    result = await asyncio.to_thread(get_or_extract_summary, url, db)
+    try:
+        result = await asyncio.to_thread(get_or_extract_summary, url, db)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     if result is None:
         raise HTTPException(
             status_code=502,

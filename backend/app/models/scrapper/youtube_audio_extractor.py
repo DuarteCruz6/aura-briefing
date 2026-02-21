@@ -69,23 +69,37 @@ def _fetch_metadata(video_id: str, api_key: str) -> dict | None:
     }
 
 
-def _fetch_transcript(video_id: str) -> str | None:
-    """Fetch transcript (captions) using youtube-transcript-api. No API key needed."""
+def _fetch_transcript(video_id: str) -> tuple[str | None, str | None]:
+    """
+    Fetch transcript (captions) using youtube-transcript-api. No API key needed.
+    Returns (transcript_text, error_message). error_message is set when transcript is unavailable.
+    """
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError:
-        return None
+        return (None, "youtube-transcript-api not installed")
     try:
         segments = YouTubeTranscriptApi.get_transcript(video_id)
-    except Exception:
-        return None
+    except Exception as e:
+        err = str(e).strip() or "Transcript unavailable"
+        # Common cases: captions disabled, private video, region block
+        if "disabled" in err.lower() or "not available" in err.lower():
+            return (None, "Captions are disabled or not available for this video")
+        if "private" in err.lower() or "sign in" in err.lower():
+            return (None, "Video is private or requires sign-in")
+        if "too many requests" in err.lower() or "429" in err:
+            return (None, "Too many requests; try again later")
+        return (None, err[:200])
     if not segments:
-        return ""
+        return ("", None)
     # segments are list of dicts with "text", "start", "duration"
-    return " ".join((s.get("text") or "").strip() for s in segments).strip()
+    text = " ".join((s.get("text") or "").strip() for s in segments).strip()
+    return (text, None)
 
 
-def extract_audio(url: str, output_dir: str = ".") -> tuple[dict | None, str | None]:
+def extract_audio(
+    url: str, output_dir: str = "."
+) -> tuple[dict | None, str | None, str | None]:
     """
     Get YouTube video metadata and transcript using YouTube Data API + transcript API.
     No audio file is written; second value is the transcript text (or None).
@@ -95,29 +109,27 @@ def extract_audio(url: str, output_dir: str = ".") -> tuple[dict | None, str | N
         output_dir: Unused; kept for backward compatibility with callers.
 
     Returns:
-        Tuple of (metadata_dict, transcript_text).
-        metadata_dict has "channel", "title", "description".
-        transcript_text is the full transcript or None if unavailable.
-        On failure returns (None, None).
+        Tuple of (metadata_dict, transcript_text, error_message).
+        On success: (metadata, transcript, None). On failure: (None, None, error_message).
     """
     video_id = _video_id_from_url(url)
     if not video_id:
-        return (None, None)
+        return (None, None, "Invalid or unsupported YouTube URL (could not extract video ID)")
 
     api_key = _get_youtube_api_key()
     metadata = _fetch_metadata(video_id, api_key)
-    transcript = _fetch_transcript(video_id)
+    transcript, transcript_error = _fetch_transcript(video_id)
 
-    # If we have transcript, we can return metadata (from API or minimal from transcript)
-    if transcript is not None:
+    # If we have transcript (including empty string), success
+    if transcript_error is None:
         if not metadata:
             metadata = {"title": "", "description": "", "channel": ""}
-        return (metadata, transcript)
+        return (metadata, transcript, None)
 
-    # No transcript (e.g. disabled or private); metadata-only is still useful for listing
+    # No transcript
     if metadata:
-        return (metadata, None)
-    return (None, None)
+        return (None, None, transcript_error or "Transcript not available for this video")
+    return (None, None, transcript_error or "Could not get video metadata or transcript")
 
 
 def main() -> None:
@@ -132,13 +144,13 @@ def main() -> None:
 
     print(f"Fetching metadata and transcript for: {url}", file=sys.stderr)
     try:
-        metadata, transcript = extract_audio(url)
+        metadata, transcript, err = extract_audio(url)
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
 
-    if metadata is None:
-        print(json.dumps({"error": "Could not get video metadata or transcript."}), file=sys.stderr)
+    if metadata is None or err:
+        print(json.dumps({"error": err or "Could not get video metadata or transcript."}), file=sys.stderr)
         sys.exit(1)
 
     out = {**metadata, "text": transcript or ""}

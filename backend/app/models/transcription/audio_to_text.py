@@ -83,9 +83,11 @@ def youtube_url_to_text(
     """
     from app.models.scrapper.youtube_audio_extractor import extract_audio
 
-    metadata, transcript = extract_audio(youtube_url, output_dir)
+    metadata, transcript, error = extract_audio(youtube_url, output_dir)
+    if error:
+        raise ValueError(error)
     if not metadata or transcript is None:
-        return None
+        raise ValueError("Could not get video metadata or transcript")
     return {
         "channel": metadata.get("channel", ""),
         "title": metadata.get("title", ""),
