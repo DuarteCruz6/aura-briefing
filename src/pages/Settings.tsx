@@ -5,8 +5,6 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { ArrowLeft, Check } from "lucide-react";
 
-const allTopics = ["AI & Technology", "World News", "Markets & Finance", "Climate & Energy", "Science", "Politics", "Health", "Culture", "Sports", "Startups"];
-const allRegions = ["Global", "United States", "Europe", "Ireland", "United Kingdom", "Asia Pacific", "Middle East", "Africa", "Latin America"];
 const briefingLengths = [
   { value: 3, label: "3 min", desc: "Quick headlines" },
   { value: 7, label: "7 min", desc: "Key stories" },
@@ -22,14 +20,8 @@ const voiceStyles = [
 const Settings = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [selectedTopics, setSelectedTopics] = useState<string[]>(["AI & Technology", "World News", "Markets & Finance"]);
-  const [selectedRegions, setSelectedRegions] = useState<string[]>(["Global", "Ireland"]);
   const [briefingLength, setBriefingLength] = useState(7);
   const [voiceStyle, setVoiceStyle] = useState("professional");
-
-  const toggleItem = (item: string, list: string[], setList: (v: string[]) => void) => {
-    setList(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
-  };
 
   if (!user) return null;
 
@@ -62,24 +54,6 @@ const Settings = () => {
             >
               Log out
             </button>
-          </Section>
-
-          {/* Topics */}
-          <Section title="Preferred Topics">
-            <div className="flex flex-wrap gap-2">
-              {allTopics.map((topic) => (
-                <Chip key={topic} label={topic} active={selectedTopics.includes(topic)} onClick={() => toggleItem(topic, selectedTopics, setSelectedTopics)} />
-              ))}
-            </div>
-          </Section>
-
-          {/* Regions */}
-          <Section title="Preferred Regions">
-            <div className="flex flex-wrap gap-2">
-              {allRegions.map((region) => (
-                <Chip key={region} label={region} active={selectedRegions.includes(region)} onClick={() => toggleItem(region, selectedRegions, setSelectedRegions)} />
-              ))}
-            </div>
           </Section>
 
           {/* Briefing Length */}
