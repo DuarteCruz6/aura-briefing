@@ -10,7 +10,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-
 interface AudioPlayerProps {
   src?: string;
   trackTitle?: string;
@@ -86,18 +85,17 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     if (audioRef.current) audioRef.current.volume = pct;
   }, []);
 
-
   return (
     <motion.div
       initial={{ y: 60 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="sticky bottom-0 z-40 glass-panel-strong border-t border-border/50 px-6 py-3"
+      className="sticky bottom-0 z-40 glass-panel-strong border-t border-border/50 px-3 sm:px-6 py-3"
     >
       <audio ref={audioRef} preload="metadata" />
-      <div className="flex items-center gap-6">
-        {/* Now playing info */}
-        <div className="flex items-center gap-3 min-w-[200px]">
+      <div className="flex items-center gap-3 sm:gap-6">
+        {/* Now playing info — hidden on very small screens */}
+        <div className="hidden sm:flex items-center gap-3 min-w-[160px] lg:min-w-[200px]">
           <div className="relative w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             {playing && (
               <motion.div
@@ -108,17 +106,22 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             )}
             <div className={`w-3 h-3 rounded-full bg-primary ${playing ? "animate-pulse" : ""}`} />
           </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">{trackTitle || "Select a briefing"}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{trackTitle || "Select a briefing"}</p>
             <p className="text-xs text-muted-foreground">{duration > 0 ? formatTime(duration) : "--:--"}</p>
           </div>
         </div>
 
         {/* Controls + timeline */}
         <div className="flex-1 flex flex-col items-center gap-1">
-          <div className="flex items-center gap-4">
-            <button onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground transition-colors" title="Back 10s">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button
+              onClick={() => skip(-10)}
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+              title="Back 10 seconds"
+            >
               <RotateCcw className="w-4 h-4" />
+              <span className="text-[10px] font-medium">10s</span>
             </button>
             <button
               onClick={togglePlay}
@@ -126,12 +129,17 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             >
               {playing ? <Pause className="w-4 h-4 text-background" /> : <Play className="w-4 h-4 text-background ml-0.5" />}
             </button>
-            <button onClick={() => skip(10)} className="text-muted-foreground hover:text-foreground transition-colors" title="Forward 10s">
+            <button
+              onClick={() => skip(10)}
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+              title="Forward 10 seconds"
+            >
+              <span className="text-[10px] font-medium">10s</span>
               <RotateCw className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Simple timeline */}
+          {/* Timeline */}
           <div className="w-full max-w-xl">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
@@ -150,17 +158,19 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
           </div>
         </div>
 
-        {/* Right controls */}
-        <div className="flex items-center gap-3 min-w-[140px] justify-end">
+        {/* Right controls — hide volume on small screens */}
+        <div className="flex items-center gap-2 sm:gap-3 sm:min-w-[140px] justify-end">
           <button
             onClick={cycleSpeed}
             className="text-xs font-medium text-muted-foreground px-2 py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors"
           >
             {SPEED_OPTIONS[speedIndex]}x
           </button>
-          <Volume2 className="w-4 h-4 text-muted-foreground" />
-          <div className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onClick={handleVolumeChange}>
-            <div className="h-full bg-muted-foreground rounded-full" style={{ width: `${volume * 100}%` }} />
+          <div className="hidden sm:flex items-center gap-2">
+            <Volume2 className="w-4 h-4 text-muted-foreground" />
+            <div className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onClick={handleVolumeChange}>
+              <div className="h-full bg-muted-foreground rounded-full" style={{ width: `${volume * 100}%` }} />
+            </div>
           </div>
         </div>
       </div>

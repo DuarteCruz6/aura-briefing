@@ -28,7 +28,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const [briefingLength, setBriefingLength] = useState(7);
   const [voiceStyle, setVoiceStyle] = useState("professional");
-  const [frequency, setFrequency] = useState("daily");
+  const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -119,7 +119,7 @@ const Settings = () => {
               {briefingFrequencies.map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => setFrequency(opt.value)}
+                  onClick={() => { setFrequency(opt.value); localStorage.setItem("briefcast_frequency", opt.value); }}
                   className={`glass-panel rounded-xl p-4 text-center transition-all border ${
                     frequency === opt.value
                       ? "border-primary/50 bg-primary/10"

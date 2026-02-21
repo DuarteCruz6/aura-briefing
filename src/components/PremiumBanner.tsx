@@ -87,13 +87,18 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
             <h3 className="font-display text-lg font-bold text-foreground">Turn Your Briefing Into a Video</h3>
             <p className="text-sm text-muted-foreground">One tap. Cinematic visuals, charts & motion graphics — generated in seconds.</p>
           </div>
-          <motion.div
-            animate={{ x: [0, 6, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="text-primary font-semibold text-sm whitespace-nowrap"
-          >
-            Try Free →
-          </motion.div>
+          {!trialStarted && (
+            <motion.div
+              animate={{ x: [0, 6, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="text-primary font-semibold text-sm whitespace-nowrap"
+            >
+              Try Free →
+            </motion.div>
+          )}
+          {trialStarted && (
+            <span className="text-primary font-semibold text-sm whitespace-nowrap">✓ Active</span>
+          )}
         </div>
       </motion.section>
 
