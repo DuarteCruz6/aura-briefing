@@ -79,7 +79,8 @@ def _fetch_transcript(video_id: str) -> tuple[str | None, str | None]:
     except ImportError:
         return (None, "youtube-transcript-api not installed")
     try:
-        segments = YouTubeTranscriptApi.get_transcript(video_id)
+        api = YouTubeTranscriptApi()
+        fetched = api.fetch(video_id)
     except Exception as e:
         err = str(e).strip() or "Transcript unavailable"
         # Common cases: captions disabled, private video, region block
@@ -90,11 +91,15 @@ def _fetch_transcript(video_id: str) -> tuple[str | None, str | None]:
         if "too many requests" in err.lower() or "429" in err:
             return (None, "Too many requests; try again later")
         return (None, err[:200])
-    if not segments:
+    if not fetched:
         return ("", None)
-    # segments are list of dicts with "text", "start", "duration"
-    text = " ".join((s.get("text") or "").strip() for s in segments).strip()
-    return (text, None)
+    # FetchedTranscript is list-like; each snippet has .text, .start, .duration
+    parts = []
+    for s in fetched:
+        t = s.get("text") if isinstance(s, dict) else getattr(s, "text", None)
+        if t:
+            parts.append(str(t).strip())
+    return (" ".join(parts).strip(), None)
 
 
 def extract_audio(
