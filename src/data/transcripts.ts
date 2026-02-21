@@ -1,7 +1,7 @@
 export interface TranscriptSegment {
   id: number;
-  start: number; // seconds
-  end: number;   // seconds
+  start: number;
+  end: number;
   text: string;
 }
 
@@ -10,37 +10,75 @@ export interface TrackTranscript {
   segments: TranscriptSegment[];
 }
 
+const podcastLines: TranscriptSegment[] = [
+  { id: 0, start: 0, end: 4, text: "♪ Intro music ♪" },
+  { id: 1, start: 4, end: 9, text: "Hey everyone, and welcome to your personal digest." },
+  { id: 2, start: 9, end: 15, text: "I've got a fascinating story for you today," },
+  { id: 3, start: 15, end: 21, text: "one that started with a simple, mysterious shadow on Google Maps" },
+  { id: 4, start: 21, end: 28, text: "and spiraled into a deep dive into geopolitics, history, and a very specific quest for proof in the Arctic." },
+  { id: 5, start: 28, end: 34, text: "So, imagine scrolling through Google Maps," },
+  { id: 6, start: 34, end: 39, text: "looking at the remote, icy landscapes of the Russian Arctic." },
+  { id: 7, start: 39, end: 46, text: "Our story's investigator saw something odd:" },
+  { id: 8, start: 46, end: 52, text: "a distinct, cross-shaped shadow on Novaya Zemlya," },
+  { id: 9, start: 52, end: 58, text: "a vast Russian archipelago where the sun barely sets in summer" },
+  { id: 10, start: 58, end: 63, text: "and never rises in winter." },
+  { id: 11, start: 63, end: 68, text: "This wasn't just any shadow; it was a big one," },
+  { id: 12, start: 68, end: 74, text: "and it sparked a lot of questions." },
+  { id: 13, start: 74, end: 80, text: "People online had theories — antenna, lighthouse, microwave tower —" },
+  { id: 14, start: 80, end: 86, text: "but the idea of it being a giant cross really grabbed attention." },
+  { id: 15, start: 86, end: 93, text: "Turns out, this cross-like object wasn't there in 2021" },
+  { id: 16, start: 93, end: 99, text: "but was clearly visible by 2025." },
+  { id: 17, start: 99, end: 106, text: "Novaya Zemlya, by the way, is a historically significant spot for Russia," },
+  { id: 18, start: 106, end: 113, text: "even serving as a test site for nuclear weapons like the Tsar Bomba." },
+  { id: 19, start: 113, end: 118, text: "So, the area has strategic importance." },
+  { id: 20, start: 118, end: 125, text: "The investigation soon uncovered a broader initiative:" },
+  { id: 21, start: 125, end: 132, text: "\"The Russian Arctic Project.\"" },
+  { id: 22, start: 132, end: 140, text: "This isn't just a church group; it's a partnership between" },
+  { id: 23, start: 140, end: 148, text: "the Russian Orthodox Church, the Russian Geographical Society, and the Russian Armed Forces." },
+  { id: 24, start: 148, end: 156, text: "Their mission? To plant huge Orthodox crosses across the Arctic," },
+  { id: 25, start: 156, end: 165, text: "with similar crosses erected in places like Franz Josef Land" },
+  { id: 26, start: 165, end: 172, text: "and even on Norway's Svalbard archipelago in 2023." },
+  { id: 27, start: 172, end: 179, text: "Why crosses? Well, it's less about pure religion" },
+  { id: 28, start: 179, end: 186, text: "and more about a geopolitical statement." },
+  { id: 29, start: 186, end: 195, text: "The head of the Russian Orthodox Church's Arctic diocese, Bishop Iakov," },
+  { id: 30, start: 195, end: 204, text: "has been super active, installing crosses and giving blessings," },
+  { id: 31, start: 204, end: 210, text: "even at the North Pole itself." },
+  { id: 32, start: 210, end: 220, text: "This kind of symbolic assertion isn't new for Russia;" },
+  { id: 33, start: 220, end: 230, text: "remember when an explorer planted a Russian titanium flag on the North Pole's ocean floor back in 2007?" },
+  { id: 34, start: 230, end: 240, text: "These crosses, sometimes even adorned with military symbols like the St. George ribbon," },
+  { id: 35, start: 240, end: 250, text: "are a clear way to underscore Russia's claims and presence in the Arctic." },
+  { id: 36, start: 250, end: 260, text: "Our curious investigator was determined to prove" },
+  { id: 37, start: 260, end: 270, text: "that the Novaya Zemlya shadow was indeed one of these \"Arctic Project\" crosses." },
+  { id: 38, start: 270, end: 280, text: "They tried to find the shadows of the other known crosses in Svalbard and Franz Josef Land" },
+  { id: 39, start: 280, end: 290, text: "on satellite images, which proved surprisingly difficult" },
+  { id: 40, start: 290, end: 298, text: "due to relocations — the Svalbard cross had to be moved after Norway objected! — and snow cover." },
+  { id: 41, start: 298, end: 308, text: "The breakthrough came with a bit of geometry and some old-fashioned detective work." },
+  { id: 42, start: 308, end: 318, text: "By measuring the length of the mysterious shadow on Google Maps" },
+  { id: 43, start: 318, end: 328, text: "and knowing the sun's angle on that specific day and time," },
+  { id: 44, start: 328, end: 338, text: "the height of the object was calculated to be about 7.5 meters." },
+  { id: 45, start: 338, end: 348, text: "This was incredibly close to the reported heights of the other Arctic Project crosses — around 7 to 8 meters." },
+  { id: 46, start: 348, end: 360, text: "And then, an environmental NGO based in Norway, the Bellona Foundation," },
+  { id: 47, start: 360, end: 372, text: "came through with the definitive proof:" },
+  { id: 48, start: 372, end: 385, text: "a news article confirming an 8-meter tall Orthodox cross had indeed been erected on Novaya Zemlya in April 2021," },
+  { id: 49, start: 385, end: 395, text: "commemorating an 1822 Arctic expedition." },
+  { id: 50, start: 395, end: 408, text: "It turned out a photograph initially misidentified as a cross in Franz Josef Land" },
+  { id: 51, start: 408, end: 420, text: "was actually a crystal-clear image of our Novaya Zemlya cross," },
+  { id: 52, start: 420, end: 430, text: "complete with Bishop Iakov himself in attendance!" },
+  { id: 53, start: 430, end: 442, text: "So, what's the deeper meaning behind all these crosses?" },
+  { id: 54, start: 442, end: 455, text: "A New Yorker article offered a crucial clue: the Pomors." },
+  { id: 55, start: 455, end: 468, text: "These are an ancient Russian ethnographic group" },
+  { id: 56, start: 468, end: 480, text: "who for centuries fished and hunted in the Arctic," },
+  { id: 57, start: 480, end: 495, text: "leaving Orthodox crosses as both navigational aids and territorial markers." },
+  { id: 58, start: 495, end: 510, text: "Today, hundreds of years later, the Russian Orthodox Church" },
+  { id: 59, start: 510, end: 530, text: "is reviving this tradition — planting new crosses to reassert historical and sovereign claims" },
+  { id: 60, start: 530, end: 545, text: "in an increasingly contested Arctic region." },
+];
+
 export const transcripts: TrackTranscript[] = [
-  {
-    trackTitle: "Daily Briefing",
-    segments: [
-      { id: 0, start: 0, end: 5, text: "(Intro music fades in and out)" },
-      { id: 1, start: 5, end: 28, text: "Hey everyone, and welcome to your personal digest. I've got a fascinating story for you today, one that started with a simple, mysterious shadow on Google Maps and spiraled into a deep dive into geopolitics, history, and a very specific quest for proof in the Arctic." },
-      { id: 2, start: 28, end: 52, text: "So, imagine scrolling through Google Maps, looking at the remote, icy landscapes of the Russian Arctic. Our story's investigator saw something odd: a distinct, cross-shaped shadow on Novaya Zemlya, a vast Russian archipelago where the sun barely sets in summer and never rises in winter. This wasn't just any shadow; it was a big one, and it sparked a lot of questions. People online had theories – antenna, lighthouse, microwave tower – but the idea of it being a giant cross really grabbed attention." },
-      { id: 3, start: 52, end: 68, text: "Turns out, this cross-like object wasn't there in 2021 but was clearly visible by 2025. Novaya Zemlya, by the way, is a historically significant spot for Russia, even serving as a test site for nuclear weapons like the Tsar Bomba. So, the area has strategic importance." },
-      { id: 4, start: 68, end: 95, text: "The investigation soon uncovered a broader initiative: \"The Russian Arctic Project.\" This isn't just a church group; it's a partnership between the Russian Orthodox Church, the Russian Geographical Society, and the Russian Armed Forces. Their mission? To plant huge Orthodox crosses across the Arctic, with similar crosses erected in places like Franz Josef Land and even on Norway's Svalbard archipelago in 2023." },
-      { id: 5, start: 95, end: 130, text: "Why crosses? Well, it's less about pure religion and more about a geopolitical statement. You see, the head of the Russian Orthodox Church's Arctic diocese, Bishop Iakov, has been super active, installing crosses and giving blessings, even at the North Pole itself. This kind of symbolic assertion isn't new for Russia; remember when an explorer planted a Russian titanium flag on the North Pole's ocean floor back in 2007? These crosses, sometimes even adorned with military symbols like the St. George ribbon, are a clear way to underscore Russia's claims and presence in the Arctic." },
-      { id: 6, start: 130, end: 160, text: "Our curious investigator was determined to prove that the Novaya Zemlya shadow was indeed one of these \"Arctic Project\" crosses. They tried to find the shadows of the other known crosses in Svalbard and Franz Josef Land on satellite images, which proved surprisingly difficult due to relocations (the Svalbard cross had to be moved after Norway objected!) and snow cover." },
-      { id: 7, start: 160, end: 205, text: "The breakthrough came with a bit of geometry and some old-fashioned detective work. By measuring the length of the mysterious shadow on Google Maps and knowing the sun's angle on that specific day and time, the height of the object was calculated to be about 7.5 meters. This was incredibly close to the reported heights of the other Arctic Project crosses – around 7 to 8 meters. And then, an environmental NGO based in Norway, the Bellona Foundation, came through with the definitive proof: a news article confirming an 8-meter tall Orthodox cross had indeed been erected on Novaya Zemlya in April 2021, commemorating an 1822 Arctic expedition." },
-      { id: 8, start: 205, end: 225, text: "It turned out a photograph initially misidentified as a cross in Franz Josef Land was actually a crystal-clear image of our Novaya Zemlya cross, complete with Bishop Iakov himself in attendance!" },
-      { id: 9, start: 225, end: 270, text: "So, what's the deeper meaning behind all these crosses? A New Yorker article offered a crucial clue: the Pomors. These are an ancient Russian ethnographic group who for centuries fished and hunted in the Arctic, leaving Orthodox crosses as both navigational aids and territorial markers. Today, hundreds of years later, the Russian Orthodox Church is reviving this tradition – planting new crosses to reassert historical and sovereign claims in an increasingly contested Arctic region." },
-    ],
-  },
-  {
-    trackTitle: "Today's Briefing",
-    segments: [
-      { id: 0, start: 0, end: 5, text: "(Intro music fades in and out)" },
-      { id: 1, start: 5, end: 28, text: "Hey everyone, and welcome to your personal digest. I've got a fascinating story for you today, one that started with a simple, mysterious shadow on Google Maps and spiraled into a deep dive into geopolitics, history, and a very specific quest for proof in the Arctic." },
-      { id: 2, start: 28, end: 52, text: "So, imagine scrolling through Google Maps, looking at the remote, icy landscapes of the Russian Arctic. Our story's investigator saw something odd: a distinct, cross-shaped shadow on Novaya Zemlya, a vast Russian archipelago where the sun barely sets in summer and never rises in winter. This wasn't just any shadow; it was a big one, and it sparked a lot of questions. People online had theories – antenna, lighthouse, microwave tower – but the idea of it being a giant cross really grabbed attention." },
-      { id: 3, start: 52, end: 68, text: "Turns out, this cross-like object wasn't there in 2021 but was clearly visible by 2025. Novaya Zemlya, by the way, is a historically significant spot for Russia, even serving as a test site for nuclear weapons like the Tsar Bomba. So, the area has strategic importance." },
-      { id: 4, start: 68, end: 95, text: "The investigation soon uncovered a broader initiative: \"The Russian Arctic Project.\" This isn't just a church group; it's a partnership between the Russian Orthodox Church, the Russian Geographical Society, and the Russian Armed Forces. Their mission? To plant huge Orthodox crosses across the Arctic, with similar crosses erected in places like Franz Josef Land and even on Norway's Svalbard archipelago in 2023." },
-      { id: 5, start: 95, end: 130, text: "Why crosses? Well, it's less about pure religion and more about a geopolitical statement. You see, the head of the Russian Orthodox Church's Arctic diocese, Bishop Iakov, has been super active, installing crosses and giving blessings, even at the North Pole itself." },
-      { id: 6, start: 130, end: 160, text: "Our curious investigator was determined to prove that the Novaya Zemlya shadow was indeed one of these \"Arctic Project\" crosses. They tried to find the shadows of the other known crosses in Svalbard and Franz Josef Land on satellite images, which proved surprisingly difficult due to relocations and snow cover." },
-      { id: 7, start: 160, end: 205, text: "The breakthrough came with a bit of geometry and some old-fashioned detective work. By measuring the length of the mysterious shadow on Google Maps and knowing the sun's angle on that specific day and time, the height of the object was calculated to be about 7.5 meters." },
-      { id: 8, start: 205, end: 225, text: "It turned out a photograph initially misidentified as a cross in Franz Josef Land was actually a crystal-clear image of our Novaya Zemlya cross, complete with Bishop Iakov himself in attendance!" },
-      { id: 9, start: 225, end: 270, text: "So, what's the deeper meaning behind all these crosses? The Pomors, an ancient Russian ethnographic group, left Orthodox crosses as both navigational aids and territorial markers for centuries. Today, the Russian Orthodox Church is reviving this tradition to reassert historical and sovereign claims in an increasingly contested Arctic region." },
-    ],
-  },
+  { trackTitle: "Daily Briefing", segments: podcastLines },
+  { trackTitle: "Today's Briefing", segments: podcastLines },
+  { trackTitle: "This Week's Briefing", segments: podcastLines },
+  { trackTitle: "This Month's Briefing", segments: podcastLines },
 ];
 
 export function getTranscriptForTrack(title: string): TranscriptSegment[] | null {
