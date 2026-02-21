@@ -92,8 +92,10 @@ class AuthMeRequest(BaseModel):
 
 
 class SettingsUpdateRequest(BaseModel):
-    """Update user settings (e.g. briefing_frequency)."""
+    """Update user settings (e.g. briefing_frequency, briefing_length, voice_style)."""
     briefing_frequency: str | None = None
+    briefing_length: int | None = None  # minutes: 3, 7, 12
+    voice_style: str | None = None  # professional, conversational, energetic, minimal
 
 
 class BookmarkCreateRequest(BaseModel):
@@ -544,12 +546,24 @@ def get_my_settings(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    """Get current user settings (e.g. briefing_frequency)."""
+    """Get current user settings (briefing_frequency, briefing_length, voice_style)."""
     rows = db.query(UserSetting).filter(UserSetting.user_id == user_id).all()
-    out = {"briefing_frequency": "daily"}
+    out = {"briefing_frequency": "daily", "briefing_length": "7", "voice_style": "professional"}
     for r in rows:
         out[r.key] = r.value
     return out
+
+
+def _upsert_setting(db: Session, user_id: int, key: str, value: str) -> None:
+    existing = (
+        db.query(UserSetting)
+        .filter(UserSetting.user_id == user_id, UserSetting.key == key)
+        .first()
+    )
+    if existing:
+        existing.value = value
+    else:
+        db.add(UserSetting(user_id=user_id, key=key, value=value))
 
 
 @app.patch("/users/me/settings")
@@ -560,19 +574,17 @@ def update_my_settings(
 ):
     """Update current user settings."""
     if body.briefing_frequency is not None:
-        val = body.briefing_frequency.strip() or "daily"
-        existing = (
-            db.query(UserSetting)
-            .filter(UserSetting.user_id == user_id, UserSetting.key == "briefing_frequency")
-            .first()
-        )
-        if existing:
-            existing.value = val
-        else:
-            db.add(UserSetting(user_id=user_id, key="briefing_frequency", value=val))
-        db.commit()
+        val = (body.briefing_frequency or "").strip() or "daily"
+        _upsert_setting(db, user_id, "briefing_frequency", val)
+    if body.briefing_length is not None:
+        val = str(int(body.briefing_length))
+        _upsert_setting(db, user_id, "briefing_length", val)
+    if body.voice_style is not None:
+        val = (body.voice_style or "").strip() or "professional"
+        _upsert_setting(db, user_id, "voice_style", val)
+    db.commit()
     rows = db.query(UserSetting).filter(UserSetting.user_id == user_id).all()
-    out = {"briefing_frequency": "daily"}
+    out = {"briefing_frequency": "daily", "briefing_length": "7", "voice_style": "professional"}
     for r in rows:
         out[r.key] = r.value
     return out

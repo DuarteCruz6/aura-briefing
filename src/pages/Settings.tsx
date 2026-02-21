@@ -73,6 +73,10 @@ const Settings = () => {
         const f = s.briefing_frequency || "daily";
         setFrequency(f);
         localStorage.setItem("briefcast_frequency", f);
+        const len = s.briefing_length != null ? parseInt(s.briefing_length, 10) : 7;
+        if ([3, 7, 12].includes(len)) setBriefingLength(len);
+        const vs = s.voice_style || "professional";
+        if (["professional", "conversational", "energetic", "minimal"].includes(vs)) setVoiceStyle(vs);
       })
       .catch(() => {
         toast({ title: "Could not load settings", description: "Using local values.", variant: "destructive" });
@@ -172,7 +176,23 @@ const Settings = () => {
               {briefingLengths.map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => setBriefingLength(opt.value)}
+                  onClick={() => {
+                    const prev = briefingLength;
+                    setBriefingLength(opt.value);
+                    api
+                      .updateSettings({ briefing_length: opt.value })
+                      .then(() => {
+                        toast({ title: "Settings saved", description: "Your preference has been saved." });
+                      })
+                      .catch(() => {
+                        setBriefingLength(prev);
+                        toast({
+                          title: "Settings not saved",
+                          description: "Could not save to the server. Check your connection.",
+                          variant: "destructive",
+                        });
+                      });
+                  }}
                   className={`glass-panel rounded-xl p-4 text-center transition-all border ${
                     briefingLength === opt.value
                       ? "border-primary/50 bg-primary/10"
@@ -230,7 +250,23 @@ const Settings = () => {
               {voiceStyles.map((v) => (
                 <button
                   key={v.value}
-                  onClick={() => setVoiceStyle(v.value)}
+                  onClick={() => {
+                    const prev = voiceStyle;
+                    setVoiceStyle(v.value);
+                    api
+                      .updateSettings({ voice_style: v.value })
+                      .then(() => {
+                        toast({ title: "Settings saved", description: "Your preference has been saved." });
+                      })
+                      .catch(() => {
+                        setVoiceStyle(prev);
+                        toast({
+                          title: "Settings not saved",
+                          description: "Could not save to the server. Check your connection.",
+                          variant: "destructive",
+                        });
+                      });
+                  }}
                   className={`glass-panel rounded-xl p-4 text-left transition-all border flex items-start gap-3 ${
                     voiceStyle === v.value
                       ? "border-primary/50 bg-primary/10"

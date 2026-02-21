@@ -96,15 +96,27 @@ export const api = {
     return res.json();
   },
 
-  /** Get current user settings (e.g. briefing_frequency). */
-  async getSettings(): Promise<{ briefing_frequency?: string }> {
+  /** Get current user settings (briefing_frequency, briefing_length, voice_style). */
+  async getSettings(): Promise<{
+    briefing_frequency?: string;
+    briefing_length?: string;
+    voice_style?: string;
+  }> {
     const res = await fetch(url("/users/me/settings"), { headers: authHeaders() });
     if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
     return res.json();
   },
 
   /** Update user settings. */
-  async updateSettings(settings: { briefing_frequency?: string }): Promise<{ briefing_frequency?: string }> {
+  async updateSettings(settings: {
+    briefing_frequency?: string;
+    briefing_length?: number;
+    voice_style?: string;
+  }): Promise<{
+    briefing_frequency?: string;
+    briefing_length?: string;
+    voice_style?: string;
+  }> {
     const res = await fetch(url("/users/me/settings"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders() },
