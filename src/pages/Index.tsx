@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { MessageSquare, Crown } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
@@ -14,8 +14,14 @@ const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
+  const [isPremium, setIsPremium] = useState(() => localStorage.getItem("briefcast_trial") === "active");
 
-  const isPremium = localStorage.getItem("briefcast_trial") === "active";
+  // Re-check premium status when popup closes (user may have just activated)
+  useEffect(() => {
+    if (!premiumOpen) {
+      setIsPremium(localStorage.getItem("briefcast_trial") === "active");
+    }
+  }, [premiumOpen]);
 
   const handlePlay = useCallback((audioUrl: string, title: string) => {
     setCurrentTrack({ src: audioUrl, title });
