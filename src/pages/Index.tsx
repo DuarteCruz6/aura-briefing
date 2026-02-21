@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from "react"; 
 import { MessageSquare, Crown } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useAuth } from "@/hooks/useAuth";
