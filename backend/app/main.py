@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import traceback
 import uuid
@@ -30,6 +31,8 @@ from app.models.database import (
 
 # Frontend static files (built and copied in Docker)
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+logger = logging.getLogger(__name__)
 
 
 class TranscribeRequest(BaseModel):
@@ -990,50 +993,55 @@ async def generate_personal_briefing(
     sources_used: list[dict] = []
     topics_used: list[dict] = []
 
-    # 1) Latest from followed accounts
-    sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
-    if sources:
-        results = fetch_latest_for_sources(sources)
-        for r in results:
-            latest = r.get("latest")
-            if latest and latest.get("url"):
-                u = latest["url"].strip()
-                if u and u not in urls:
-                    urls.append(u)
-                    sources_used.append({"url": u, "title": latest.get("title"), "source_type": r.get("source_type")})
-
-    # 2) One article per topic interest
-    topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
-    if topics:
-        per_topic = min(max(1, max_per_topic), 5)
-        topic_results = fetch_articles_by_topics(topics, max_per_topic=per_topic, hl=hl, gl=gl)
-        for tr in topic_results:
-            for art in (tr.get("articles") or [])[:per_topic]:
-                u = (art.get("url") or "").strip()
-                if u and u not in urls:
-                    urls.append(u)
-                    topics_used.append({"url": u, "title": art.get("title"), "topic": tr.get("topic")})
-
-    if not urls:
-        raise HTTPException(
-            status_code=400,
-            detail="No content to summarize. Add followed sources (POST /preferences/sources) and/or topic preferences (POST /preferences/topics).",
-        )
-
     try:
+        # 1) Latest from followed accounts
+        logger.info("Briefing: phase 1 - fetching latest from sources")
+        sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
+        if sources:
+            results = fetch_latest_for_sources(sources)
+            for r in results:
+                latest = r.get("latest")
+                if latest and latest.get("url"):
+                    u = latest["url"].strip()
+                    if u and u not in urls:
+                        urls.append(u)
+                        sources_used.append({"url": u, "title": latest.get("title"), "source_type": r.get("source_type")})
+        logger.info("Briefing: phase 1 done, urls=%s", len(urls))
+
+        # 2) One article per topic interest
+        logger.info("Briefing: phase 2 - fetching articles by topics")
+        topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
+        if topics:
+            per_topic = min(max(1, max_per_topic), 5)
+            topic_results = fetch_articles_by_topics(topics, max_per_topic=per_topic, hl=hl, gl=gl)
+            for tr in topic_results:
+                for art in (tr.get("articles") or [])[:per_topic]:
+                    u = (art.get("url") or "").strip()
+                    if u and u not in urls:
+                        urls.append(u)
+                        topics_used.append({"url": u, "title": art.get("title"), "topic": tr.get("topic")})
+        logger.info("Briefing: phase 2 done, total urls=%s", len(urls))
+
+        if not urls:
+            raise HTTPException(
+                status_code=400,
+                detail="No content to summarize. Add followed sources (POST /preferences/sources) and/or topic preferences (POST /preferences/topics).",
+            )
+
+        # 3) Generate summary
+        logger.info("Briefing: phase 3 - generating multi-url summary (%s urls)", len(urls))
         summary = await asyncio.to_thread(get_multi_url_summary, urls, db)
-    except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    if not (summary or "").strip():
-        raise HTTPException(status_code=503, detail="No summary generated")
+        if not (summary or "").strip():
+            raise HTTPException(status_code=503, detail="No summary generated")
+        logger.info("Briefing: phase 3 done")
 
-    # Generate podcast audio (same as /summaries/multi-url)
-    from app.models.podcast_generation import text_to_audio
-    from app.models.podcast_generation.tts_generator import DEFAULT_MODEL_ID, DEFAULT_VOICE_ID
+        # 4) Generate podcast audio
+        logger.info("Briefing: phase 4 - generating TTS audio")
+        from app.models.podcast_generation import text_to_audio
+        from app.models.podcast_generation.tts_generator import DEFAULT_MODEL_ID, DEFAULT_VOICE_ID
 
-    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
-    try:
+        PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
         path_str, duration_seconds = await asyncio.to_thread(
             text_to_audio,
             summary,
@@ -1041,20 +1049,24 @@ async def generate_personal_briefing(
             voice_id=DEFAULT_VOICE_ID,
             model_id=DEFAULT_MODEL_ID,
         )
+        logger.info("Briefing: phase 4 done, success")
+        return FileResponse(
+            path_str,
+            media_type="audio/wav",
+            filename="briefing.wav",
+            headers={
+                "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+                "X-Urls-Count": str(len(urls)),
+            },
+        )
+    except HTTPException:
+        raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=str(e))
-
-    return FileResponse(
-        path_str,
-        media_type="audio/wav",
-        filename="briefing.wav",
-        headers={
-            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
-            "X-Urls-Count": str(len(urls)),
-        },
-    )
+        logger.exception("Briefing failed (ValueError)")
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.exception("Briefing failed at phase (see traceback above)")
+        raise HTTPException(status_code=502, detail=f"briefing failed: {type(e).__name__}: {e}")
 
 
 @app.get("/feed/by-topics")
