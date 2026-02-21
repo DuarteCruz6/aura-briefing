@@ -43,16 +43,13 @@ export function LyricsPanel({ segments, open, onClose }: LyricsPanelProps) {
           {/* Scrollable text */}
           <div
             ref={containerRef}
-            className="flex-1 overflow-y-auto px-5 sm:px-8 py-6 space-y-1"
+            className="flex-1 overflow-y-auto px-5 sm:px-8 py-6"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {segments.map((seg) => (
-              <p
-                key={seg.id}
-                className="text-sm sm:text-base text-foreground/90 leading-relaxed"
-              >
+              <div key={seg.id} className="text-sm sm:text-base text-foreground/90 leading-relaxed whitespace-pre-line">
                 {seg.text}
-              </p>
+              </div>
             ))}
           </div>
 
