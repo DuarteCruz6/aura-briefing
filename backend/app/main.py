@@ -27,6 +27,7 @@ from app.models.database import (
 
 # Frontend static files (built and copied in Docker)
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 
 
 class TranscribeRequest(BaseModel):
@@ -292,9 +293,20 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
 @app.post("/summaries/multi-url")
 async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(get_db)):
     """
-    Get or extract content for each URL (same as get-or-extract per URL), then generate
-    a single ~3-minute text summary of all content via Gemini.
+    Get or extract content for each URL, generate a ~3-minute summary via Gemini,
+    then convert to podcast audio via Gemini TTS. Returns the WAV audio file.
+    Requires GEMINI_API_KEY.
     """
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; podcast generation unavailable",
+        )
+    from app.models.podcast_generation import text_to_audio
+    from app.models.podcast_generation.tts_generator import (
+        DEFAULT_MODEL_ID,
+        DEFAULT_VOICE_ID,
+    )
     from app.services.multi_url_summary import get_multi_url_summary
 
     if not body.urls:
@@ -303,7 +315,38 @@ async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(ge
         summary = await asyncio.to_thread(get_multi_url_summary, body.urls, db)
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
-    return {"summary": summary}
+
+    summary = (summary or "").strip()
+    if not summary or summary.startswith("No "):
+        raise HTTPException(
+            status_code=502,
+            detail=summary or "No summary could be generated from the given URLs.",
+        )
+
+    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
+
+    try:
+        path_str, duration_seconds = await asyncio.to_thread(
+            text_to_audio,
+            summary,
+            output_path,
+            voice_id=DEFAULT_VOICE_ID,
+            model_id=DEFAULT_MODEL_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return FileResponse(
+        path_str,
+        media_type="audio/wav",
+        filename="podcast.wav",
+        headers={
+            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+        },
+    )
 
 
 ## ─── Source CRUD ───────────────────────────────────────────────────────────
@@ -511,9 +554,6 @@ def delete_preference_topic(
     db.delete(pref)
     db.commit()
     return {"deleted": True}
-
-
-PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 
 
 def _normalize_voice_and_model(voice_id: str | None, model_id: str | None) -> tuple[str | None, str | None]:
