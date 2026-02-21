@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import engine, get_db, init_db
-from app.models.database import ExtractedSummary
+from app.models.database import ExtractedSummary, Source, SourceType, FetchFrequency
 
 # Frontend static files (built and copied in Docker)
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -35,6 +35,13 @@ class PodcastGenerateRequest(BaseModel):
     text: str
     voice_id: str | None = None
     model_id: str | None = None
+
+
+class SourceCreateRequest(BaseModel):
+    type: str  # "youtube", "x", "linkedin", "news", "podcast"
+    url: str
+    name: str | None = None
+    frequency: str = "daily"
 
 
 @asynccontextmanager
@@ -274,6 +281,67 @@ async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(ge
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"summary": summary}
+
+
+## ─── Source CRUD ───────────────────────────────────────────────────────────
+
+@app.get("/sources")
+def list_sources(user_id: int = 1, db: Session = Depends(get_db)):
+    """List all sources for a user (default user_id=1 until auth is wired)."""
+    rows = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
+    return [
+        {
+            "id": s.id,
+            "type": s.type.value,
+            "name": s.name,
+            "url": s.url,
+            "frequency": s.frequency.value,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in rows
+    ]
+
+
+@app.post("/sources", status_code=201)
+def create_source(body: SourceCreateRequest, user_id: int = 1, db: Session = Depends(get_db)):
+    """Add a new source (YouTube channel, X profile, LinkedIn page, etc.)."""
+    try:
+        source_type = SourceType(body.type)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid type: {body.type}. Must be one of: {[t.value for t in SourceType]}")
+    try:
+        freq = FetchFrequency(body.frequency)
+    except ValueError:
+        freq = FetchFrequency.DAILY
+
+    # Prevent duplicate URL for same user
+    existing = db.query(Source).filter(Source.user_id == user_id, Source.url == body.url).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="You're already following this source")
+
+    source = Source(user_id=user_id, type=source_type, url=body.url, name=body.name, frequency=freq)
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+    return {
+        "id": source.id,
+        "type": source.type.value,
+        "name": source.name,
+        "url": source.url,
+        "frequency": source.frequency.value,
+        "created_at": source.created_at.isoformat() if source.created_at else None,
+    }
+
+
+@app.delete("/sources/{source_id}")
+def delete_source(source_id: int, user_id: int = 1, db: Session = Depends(get_db)):
+    """Remove a source."""
+    source = db.query(Source).filter(Source.id == source_id, Source.user_id == user_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    db.delete(source)
+    db.commit()
+    return {"deleted": True}
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")

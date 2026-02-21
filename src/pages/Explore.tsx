@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
+import { SourcesSection } from "../components/SourcesSection";
 import { ArrowLeft, Check, Search, Sparkles, TrendingUp, Zap, Plus, X } from "lucide-react";
 
 // ... keep existing code (topics, regions, trendingNow arrays lines 7-37)
@@ -234,6 +235,9 @@ const Explore = () => {
               )}
             </motion.section>
           )}
+
+          {/* Follow Sources */}
+          <SourcesSection />
 
           {/* Topics */}
           {showTopics && (

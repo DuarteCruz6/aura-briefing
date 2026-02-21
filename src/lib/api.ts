@@ -66,4 +66,40 @@ export const api = {
     }
     return res.json();
   },
+
+  /** List all followed sources. */
+  async getSources(): Promise<SourceEntry[]> {
+    const res = await fetch(url("/sources"));
+    if (!res.ok) throw new Error(`Failed to fetch sources: ${res.status}`);
+    return res.json();
+  },
+
+  /** Add a new source to follow. */
+  async addSource(source: { type: string; url: string; name?: string; frequency?: string }): Promise<SourceEntry> {
+    const res = await fetch(url("/sources"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(source),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  /** Remove a source. */
+  async deleteSource(sourceId: number): Promise<void> {
+    const res = await fetch(url(`/sources/${sourceId}`), { method: "DELETE" });
+    if (!res.ok) throw new Error(`Failed to delete source: ${res.status}`);
+  },
 };
+
+export interface SourceEntry {
+  id: number;
+  type: string;
+  name: string | null;
+  url: string;
+  frequency: string;
+  created_at: string | null;
+}
