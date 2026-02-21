@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { useFavourites } from "../hooks/useFavourites";
 
 const platforms = [
-  { id: "youtube", label: "YouTube", icon: Youtube, color: "text-red-500" },
-  { id: "x", label: "X / Twitter", icon: Twitter, color: "text-foreground" },
-  { id: "linkedin", label: "LinkedIn", icon: Linkedin, color: "text-blue-500" },
+  { id: "youtube", label: "YouTube", icon: Youtube, color: "text-red-500", placeholder: "e.g. https://youtube.com/@MrBeast" },
+  { id: "x", label: "X / Twitter", icon: Twitter, color: "text-foreground", placeholder: "e.g. https://x.com/elonmusk" },
+  { id: "linkedin", label: "LinkedIn", icon: Linkedin, color: "text-blue-500", placeholder: "e.g. https://linkedin.com/in/satyanadella" },
 ] as const;
 
 export const SourcesSection = () => {
@@ -80,7 +80,7 @@ export const SourcesSection = () => {
           value={sourceUrl}
           onChange={(e) => setSourceUrl(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder="Insert URL here"
+          placeholder={platformMeta.placeholder}
           className="flex-1 h-10 px-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
         />
         <button
