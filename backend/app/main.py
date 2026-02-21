@@ -462,6 +462,22 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
 ## ─── Auth (get-or-create by email) ─────────────────────────────────────────
 
+@app.options("/auth/me")
+def auth_me_options(request: Request):
+    """CORS preflight for POST /auth/me."""
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        status_code=200,
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, X-User-Email",
+            "Access-Control-Max-Age": "600",
+        },
+    )
+
+
 @app.post("/auth/me")
 def auth_me(body: AuthMeRequest, db: Session = Depends(get_db)):
     """Get or create user by email. Frontend calls this after login/signup; use X-User-Email header on subsequent requests."""
