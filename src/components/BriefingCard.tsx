@@ -1,4 +1,4 @@
-import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard, Crown } from "lucide-react";
+import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
@@ -101,10 +101,10 @@ export function BriefingCard({ title, description, duration, topics, confidence,
                 onPremiumClick?.();
               }
             }}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-primary/15 ${isPremium ? "hover:text-primary" : "hover:text-amber-500"}`}
-            title={isPremium ? "Turn into video" : "Premium feature"}
+            className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-primary/15 hover:text-primary"
+            title={isPremium ? "Turn into video" : "Upgrade to Premium"}
           >
-            {isPremium ? <Clapperboard className="w-5 h-5" /> : <Crown className="w-5 h-5" />}
+            <Clapperboard className="w-5 h-5" />
           </motion.button>
           <button
             onClick={(e) => {
