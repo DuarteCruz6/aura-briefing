@@ -1,22 +1,28 @@
 import { Home, Compass, Hash, Bookmark, Crown, Settings, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface AppSidebarProps {
+  activePage?: string;
+}
+
 const navItems = [
-  { icon: Home, label: "Home", active: true },
-  { icon: Compass, label: "Explore" },
-  { icon: Hash, label: "Topics" },
-  { icon: Bookmark, label: "Bookmarks" },
-  { icon: Crown, label: "Premium" },
+  { icon: Home, label: "Home", path: "/" },
+  { icon: Compass, label: "Explore", path: "/" },
+  { icon: Hash, label: "Topics", path: "/" },
+  { icon: Bookmark, label: "Bookmarks", path: "/" },
+  { icon: Crown, label: "Premium", path: "/" },
 ];
 
 const bottomItems = [
-  { icon: User, label: "Profile" },
-  { icon: Settings, label: "Settings" },
+  { icon: User, label: "Profile", path: "/settings" },
+  { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <motion.aside
@@ -53,7 +59,8 @@ export function AppSidebar() {
         {navItems.map((item) => (
           <button
             key={item.label}
-            className={`nav-item w-full ${item.active ? "nav-item-active" : ""}`}
+            onClick={() => navigate(item.path)}
+            className={`nav-item w-full ${item.label.toLowerCase() === activePage ? "nav-item-active" : ""}`}
           >
             <item.icon className="w-5 h-5 flex-shrink-0" />
             <AnimatePresence mode="wait">
@@ -75,7 +82,7 @@ export function AppSidebar() {
       {/* Bottom items */}
       <div className="px-3 space-y-1 mb-2">
         {bottomItems.map((item) => (
-          <button key={item.label} className="nav-item w-full">
+          <button key={item.label} onClick={() => navigate(item.path)} className={`nav-item w-full ${item.label.toLowerCase() === activePage ? "nav-item-active" : ""}`}>
             <item.icon className="w-5 h-5 flex-shrink-0" />
             <AnimatePresence mode="wait">
               {!collapsed && (
