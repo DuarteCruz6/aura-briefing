@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Settings from "./pages/Settings";
 import Explore from "./pages/Explore";
 import Bookmarks from "./pages/Bookmarks";
+import Favourites from "./pages/Favourites";
 import NotFound from "./pages/NotFound";
 import { MobileNav } from "./components/MobileNav";
 
@@ -24,6 +25,7 @@ function AnimatedRoutes() {
           <Route path="/auth" element={<Auth />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/explore" element={<Explore />} />
+          <Route path="/favourites" element={<Favourites />} />
           <Route path="/bookmarks" element={<Bookmarks />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
