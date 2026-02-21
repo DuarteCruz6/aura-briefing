@@ -1,5 +1,6 @@
 import { Play, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { RotatingGlobe } from "./RotatingGlobe";
 
 export function TodaysBriefing() {
   return (
@@ -41,7 +42,7 @@ export function TodaysBriefing() {
         ))}
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-10 flex items-start justify-between gap-6">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-4 h-4 text-primary" />
           <span className="text-xs font-medium text-primary uppercase tracking-wider">AI-Curated</span>
@@ -75,6 +76,9 @@ export function TodaysBriefing() {
             <span className="text-sm font-medium text-foreground">Play Full Briefing</span>
             <p className="text-xs text-muted-foreground">7 min · Updated 12 min ago</p>
           </div>
+        </div>
+        <div className="hidden md:block flex-shrink-0">
+          <RotatingGlobe />
         </div>
       </div>
     </motion.section>

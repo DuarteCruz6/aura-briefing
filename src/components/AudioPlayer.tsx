@@ -10,14 +10,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Chapter markers for the timeline
-const CHAPTERS = [
-  { label: "Intro", pct: 0 },
-  { label: "World", pct: 15 },
-  { label: "Tech", pct: 35 },
-  { label: "Ireland", pct: 60 },
-  { label: "Sports", pct: 80 },
-];
 
 interface AudioPlayerProps {
   src?: string;
@@ -94,11 +86,6 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     if (audioRef.current) audioRef.current.volume = pct;
   }, []);
 
-  const jumpToChapter = useCallback((pct: number) => {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
-    audio.currentTime = (pct / 100) * duration;
-  }, [duration]);
 
   return (
     <motion.div
@@ -144,8 +131,8 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             </button>
           </div>
 
-          {/* Timeline with chapter markers */}
-          <div className="w-full max-w-xl flex flex-col gap-0.5">
+          {/* Simple timeline */}
+          <div className="w-full max-w-xl">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
               <div className="flex-1 relative group cursor-pointer" onClick={handleSeek}>
@@ -157,35 +144,8 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" />
                   </div>
                 </div>
-                {/* Chapter markers */}
-                {CHAPTERS.map((ch) => (
-                  <button
-                    key={ch.label}
-                    onClick={(e) => { e.stopPropagation(); jumpToChapter(ch.pct); }}
-                    className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-muted-foreground/50 hover:bg-primary hover:scale-150 transition-all z-10"
-                    style={{ left: `${ch.pct}%` }}
-                    title={ch.label}
-                  />
-                ))}
               </div>
               <span className="text-[10px] text-muted-foreground tabular-nums w-8">{duration > 0 ? formatTime(duration) : "--:--"}</span>
-            </div>
-            {/* Chapter labels */}
-            <div className="flex items-center relative ml-10 mr-8">
-              {CHAPTERS.map((ch, i) => (
-                <button
-                  key={ch.label}
-                  onClick={() => jumpToChapter(ch.pct)}
-                  className={`absolute text-[9px] font-medium transition-colors -translate-x-1/2 ${
-                    progress >= ch.pct && (i === CHAPTERS.length - 1 || progress < CHAPTERS[i + 1].pct)
-                      ? "text-primary"
-                      : "text-muted-foreground/60 hover:text-muted-foreground"
-                  }`}
-                  style={{ left: `${ch.pct}%` }}
-                >
-                  {ch.label}
-                </button>
-              ))}
             </div>
           </div>
         </div>
