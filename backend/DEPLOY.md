@@ -19,4 +19,23 @@
 
 7. **If you get 502 "connection refused"**: In the service **Settings** → **Networking**, check **Target port**. Leave it blank so Railway uses the `PORT` it injects (often 8080), or set it to match the port shown in your **Deploy logs** (e.g. "Starting on 0.0.0.0:8080"). The app must listen on that port.
 
-**Note:** The app uses SQLite stored in `/app/data`. On Railway this is ephemeral unless you add a volume; for production you may want to switch to a hosted database and set `DATABASE_URL`.
+---
+
+## Global database on Railway (PostgreSQL)
+
+By default the app uses SQLite in `/app/data`, which is **ephemeral** on Railway (data is lost on redeploy). For a persistent, global database:
+
+1. **Add PostgreSQL** in the same Railway project:
+   - In the project canvas, click **+ New** (or `Ctrl/Cmd + K`).
+   - Choose **Database** → **PostgreSQL** (or use the [Postgres template](https://railway.com/template/postgres)).
+   - Railway will create a Postgres service with a volume; it exposes `DATABASE_URL` and other `PG*` variables.
+
+2. **Wire the backend to Postgres**:
+   - Open your **backend service** (the one built from this repo).
+   - Go to **Variables**.
+   - Add a variable: **Name** `DATABASE_URL`, **Value** click **Add Reference** (or “Reference variable”) and select the **PostgreSQL** service → **DATABASE_URL**.
+   - This makes the backend use the shared Postgres instance instead of SQLite.
+
+3. **Redeploy** the backend (push a commit or trigger a deploy). On startup, the app will run migrations (create tables) against Postgres. The `/tables` debug endpoint works with both SQLite and PostgreSQL.
+
+No code changes are required: the app reads `DATABASE_URL` from the environment and uses it with SQLAlchemy. Local development can keep using SQLite (omit `DATABASE_URL` or set it to `sqlite:///./data/newsletter.db`).

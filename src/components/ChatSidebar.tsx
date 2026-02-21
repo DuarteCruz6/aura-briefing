@@ -38,6 +38,27 @@ function formatSummary(summary: unknown): string {
   return JSON.stringify(summary);
 }
 
+// Thinking/waveform animation
+function ThinkingAnimation() {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] rounded-xl px-3.5 py-3 bg-secondary text-secondary-foreground">
+        <div className="flex items-center gap-1.5 h-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <motion.div
+              key={i}
+              animate={{ scaleY: [1, 2.5, 1], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.1, ease: "easeInOut" }}
+              className="w-[3px] h-3 rounded-full bg-primary"
+            />
+          ))}
+          <span className="text-xs text-muted-foreground ml-2">Analyzing…</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -67,10 +88,7 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
       } catch (err) {
         setMessages((prev) => [
           ...prev,
-          {
-            role: "assistant",
-            content: err instanceof Error ? err.message : "Failed to get summary for this URL.",
-          },
+          { role: "assistant", content: err instanceof Error ? err.message : "Failed to get summary for this URL." },
         ]);
       } finally {
         setLoading(false);
@@ -78,7 +96,6 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
       return;
     }
 
-    // Fallback: simulated response for non-URL questions
     setLoading(true);
     setTimeout(() => {
       setMessages((prev) => [
@@ -101,7 +118,7 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
           animate={{ width: 380, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="h-full border-l border-border/50 bg-sidebar flex flex-col overflow-hidden flex-shrink-0"
+          className="h-full border-l border-border/50 bg-sidebar/80 backdrop-blur-xl flex flex-col overflow-hidden flex-shrink-0"
         >
           {/* Header */}
           <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
@@ -150,6 +167,7 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
                 </div>
               </motion.div>
             ))}
+            {loading && <ThinkingAnimation />}
           </div>
 
           {/* Input */}

@@ -83,14 +83,30 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 def _get_table_names():
-    """Return list of user table names (no sqlite_*)."""
+    """Return list of user table names (SQLite: exclude sqlite_*; Postgres: public schema)."""
+    dialect = engine.dialect.name
     with engine.connect() as conn:
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        if dialect == "sqlite":
+            result = conn.execute(
+                text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                )
             )
-        )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
+                )
+            )
         return [row[0] for row in result]
+
+
+def _quote_table(name: str) -> str:
+    """Quote table name for raw SQL (SQLite: [...], Postgres: "...")."""
+    if engine.dialect.name == "postgresql":
+        return '"' + name.replace('"', '""') + '"'
+    return "[" + name.replace("]", "]]") + "]"
 
 
 @app.get("/tables")
@@ -100,7 +116,8 @@ def debug_tables():
     out = {}
     with engine.connect() as conn:
         for name in tables:
-            count = conn.execute(text(f"SELECT COUNT(*) FROM [{name}]")).scalar()
+            quoted = _quote_table(name)
+            count = conn.execute(text(f"SELECT COUNT(*) FROM {quoted}")).scalar()
             out[name] = count
     return {"tables": out}
 
@@ -118,9 +135,10 @@ def debug_table_contents(table_name: str, limit: int = 100):
             detail=f"Unknown table. Allowed: {', '.join(allowed)}",
         )
     cap = min(max(1, limit), 1000)
+    quoted = _quote_table(table_name)
     with engine.connect() as conn:
         result = conn.execute(
-            text(f"SELECT * FROM [{table_name}] LIMIT :cap"),
+            text(f"SELECT * FROM {quoted} LIMIT :cap"),
             {"cap": cap},
         )
         keys = result.keys()

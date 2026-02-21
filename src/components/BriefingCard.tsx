@@ -1,4 +1,4 @@
-import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Video } from "lucide-react";
+import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
@@ -13,22 +13,42 @@ interface BriefingCardProps {
   summary?: string;
   icon: React.ReactNode;
   index: number;
+  audioUrl: string;
+  isPremium: boolean;
+  onPlay?: (audioUrl: string, title: string) => void;
 }
 
-export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index }: BriefingCardProps) {
+function getConfidenceColor(c: number) {
+  if (c >= 90) return { ring: "border-green-500/40", glow: "shadow-[0_0_12px_-2px_hsl(150_80%_50%/0.3)]", dot: "bg-green-400" };
+  if (c >= 70) return { ring: "border-yellow-500/40", glow: "shadow-[0_0_12px_-2px_hsl(45_100%_55%/0.3)]", dot: "bg-yellow-400" };
+  return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
+}
+
+export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, onPlay }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
+  const cc = getConfidenceColor(confidence);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.1 }}
-      className="glass-panel hover-lift cursor-pointer group"
+      className={`glass-panel hover-lift cursor-pointer group relative overflow-hidden border-2 ${cc.ring} ${cc.glow}`}
     >
-      <div className="flex items-center gap-4 p-5" onClick={() => setExpanded(!expanded)}>
+      {/* Animated gradient on hover */}
+      <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/3 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+      {/* Confidence glow bar at top */}
+      <div className={`absolute top-0 left-0 right-0 h-[2px] opacity-60 ${
+        confidence >= 90 ? "bg-gradient-to-r from-transparent via-green-400 to-transparent" :
+        confidence >= 70 ? "bg-gradient-to-r from-transparent via-yellow-400 to-transparent" :
+        "bg-gradient-to-r from-transparent via-red-400 to-transparent"
+      }`} />
+
+      <div className="relative flex items-center gap-4 p-5" onClick={() => setExpanded(!expanded)}>
         {/* Left: icon + info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
@@ -46,8 +66,8 @@ export function BriefingCard({ title, description, duration, topics, confidence,
               <Clock className="w-3.5 h-3.5" />
               {duration}
             </span>
-            <span className="flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" />
+            <span className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${cc.dot}`} />
               {confidence}% confidence
             </span>
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
@@ -67,16 +87,20 @@ export function BriefingCard({ title, description, duration, topics, confidence,
 
         {/* Right: actions */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setVideoOpen(true);
-            }}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/15"
-            title="Turn into video"
-          >
-            <Video className="w-4 h-4" />
-          </button>
+          {isPremium && (
+            <motion.button
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setVideoOpen(true);
+              }}
+              className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/15"
+              title="Turn into video"
+            >
+              <Clapperboard className="w-5 h-5" />
+            </motion.button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -91,7 +115,10 @@ export function BriefingCard({ title, description, duration, topics, confidence,
             <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-primary" : ""}`} />
           </button>
           <button
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPlay?.(audioUrl, title);
+            }}
             className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-200"
           >
             <Play className="w-5 h-5 ml-0.5 fill-primary-foreground" />
@@ -132,6 +159,7 @@ export const briefings = [
     confidence: 94,
     summary: "Markets opened higher as tech stocks rallied on strong earnings. AI regulation talks continue in Brussels with new proposals expected this week. Climate summit delegates reached a preliminary agreement on carbon credits. Key political developments include upcoming policy votes on infrastructure spending.",
     icon: <TrendingUp className="w-5 h-5" />,
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
   },
   {
     title: "Tech Briefing",
@@ -141,6 +169,7 @@ export const briefings = [
     confidence: 97,
     summary: "New frontier AI models announced with improved reasoning capabilities. Several startups secured Series B funding rounds totaling $2.3B. Major product launches this week include updates to developer tools and a new consumer AI assistant.",
     icon: <Cpu className="w-5 h-5" />,
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
   },
   {
     title: "World Briefing",
@@ -150,6 +179,7 @@ export const briefings = [
     confidence: 91,
     summary: "Diplomatic talks between key nations show progress on trade agreements. Ongoing conflicts see shifts in humanitarian corridors. New trade tariffs proposed by multiple blocs. Upcoming elections in three countries could reshape regional alliances.",
     icon: <Globe className="w-5 h-5" />,
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
   },
   {
     title: "Ireland Briefing",
@@ -159,5 +189,6 @@ export const briefings = [
     confidence: 89,
     summary: "Irish economy shows resilient growth figures despite global headwinds. New housing development plans announced for Dublin and Cork. Tech hub expansion continues with major employers adding roles. Weekend sports roundup covers GAA and rugby highlights.",
     icon: <MapPin className="w-5 h-5" />,
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
   },
 ];
