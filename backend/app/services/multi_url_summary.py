@@ -9,12 +9,16 @@ from app.services.url_summary import get_or_extract_summary
 
 
 def _summary_dict_to_content(obj: dict, url: str = "") -> str:
-    """Turn one URL's summary JSON into a single string (title + main text/transcript)."""
+    """Turn one URL's summary JSON into a single string (title + description + main text/transcript)."""
     if not obj:
         return ""
     title = obj.get("title") or obj.get("name") or ""
+    description = obj.get("description") or ""
     body = obj.get("text") or obj.get("transcript") or obj.get("content") or ""
-    parts = [f"Source: {url}", title, body] if url else [title, body]
+    parts = [f"Source: {url}", title]
+    if description:
+        parts.append(description)
+    parts.append(body)
     return "\n".join(p for p in parts if p).strip()
 
 

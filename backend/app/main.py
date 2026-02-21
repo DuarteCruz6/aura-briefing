@@ -199,8 +199,9 @@ def get_summary_by_url(url: str, db: Session = Depends(get_db)):
 @app.post("/summaries/get-or-extract")
 async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Depends(get_db)):
     """
-    Get summary for a URL: if in DB return it; else extract (YouTube or text), save, return.
-    Returns only the summary object (no wrapper).
+    Single entry for any URL: YouTube or text (articles, X, LinkedIn, etc.).
+    If in DB returns cached summary; else extracts (YouTube: audio → transcript via ElevenLabs;
+    text: fetch page → Gemini), saves, and returns. Response is the summary JSON (e.g. title, text, channel, description).
     """
     url = (body.url or "").strip()
     if not url:

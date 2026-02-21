@@ -93,11 +93,17 @@ def youtube_url_to_text(
             model_id=model_id,
             language_code=language_code,
         )
+        return {
+            "channel": metadata.get("channel", ""),
+            "title": metadata.get("title", ""),
+            "description": metadata.get("description", ""),
+            "text": text,
+        }
     except Exception:
         return None
-    return {
-        "channel": metadata.get("channel", ""),
-        "title": metadata.get("title", ""),
-        "description": metadata.get("description", ""),
-        "text": text,
-    }
+    finally:
+        try:
+            if audio_path and os.path.isfile(audio_path):
+                os.remove(audio_path)
+        except OSError:
+            pass
