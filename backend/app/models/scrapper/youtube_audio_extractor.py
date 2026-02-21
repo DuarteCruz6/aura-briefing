@@ -44,6 +44,7 @@ def extract_audio(url: str, output_dir: str = ".") -> tuple[dict | None, str | N
         "outtmpl": out_template,
         "quiet": False,
         "postprocessor_args": ["-ar", "44100"],
+        'cookiesfrombrowser': ('chrome', None, None, None), 
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
