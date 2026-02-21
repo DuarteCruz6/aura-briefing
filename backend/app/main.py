@@ -960,6 +960,35 @@ def delete_preference_topic(
     return {"deleted": True}
 
 
+@app.get("/feed/by-topics")
+def get_feed_by_topics(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    max_per_topic: int = 5,
+    hl: str = "en-US",
+    gl: str = "US",
+):
+    """
+    Get articles from Google News RSS based on the user's topic preferences (e.g. cars, ireland).
+    Uses the free Google News RSS search - no API key needed.
+    Each topic fetches recent articles from thousands of publishers.
+    """
+    from app.services.feed_by_topics import fetch_articles_by_topics
+
+    topics = [
+        p.topic
+        for p in db.query(UserTopicPreference)
+        .filter(UserTopicPreference.user_id == user_id)
+        .order_by(UserTopicPreference.created_at.desc())
+        .all()
+    ]
+    if not topics:
+        return {"topics": [], "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics"}
+    max_per_topic = min(max(1, max_per_topic), 20)
+    results = fetch_articles_by_topics(topics, max_per_topic=max_per_topic, hl=hl, gl=gl)
+    return {"topics": results}
+
+
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 
 
