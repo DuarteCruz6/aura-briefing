@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles } from "lucide-react";
+import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { useFavourites } from "../hooks/useFavourites";
@@ -65,7 +65,28 @@ const Index = () => {
     };
   }, []);
 
-  // Map API briefings to card shape (from user's sources in DB)
+  // Generate themed briefing cards from favourites
+  const favouriteIconMap: Record<string, React.ReactNode> = {
+    topic: <TrendingUp className="w-5 h-5" />,
+    region: <MapPin className="w-5 h-5" />,
+    interest: <Sparkles className="w-5 h-5" />,
+    source: <Globe className="w-5 h-5" />,
+  };
+  const themeIcons = [<Headphones className="w-5 h-5" />, <Radio className="w-5 h-5" />, <Mic className="w-5 h-5" />, <Cpu className="w-5 h-5" />];
+
+  const favouriteBriefings = favourites.map((fav, i) => ({
+    id: `fav-${fav.id}`,
+    title: `${fav.label} Briefing`,
+    description: fav.desc || `Latest updates on ${fav.label}`,
+    duration: `${5 + (i % 4) * 2} min`,
+    topics: [fav.type, fav.label],
+    confidence: 75 + (i % 4) * 7,
+    summary: `Your personalized podcast briefing covering the latest developments in ${fav.label}.`,
+    icon: themeIcons[i % themeIcons.length],
+    audioUrl: "/audio/podcast.wav",
+  }));
+
+  // Merge API briefings with favourite-generated briefings
   const sourceIconMap: Record<string, React.ReactNode> = {
     youtube: <TrendingUp className="w-5 h-5" />,
     x: <Cpu className="w-5 h-5" />,
@@ -73,7 +94,7 @@ const Index = () => {
     news: <Globe className="w-5 h-5" />,
     podcast: <Cpu className="w-5 h-5" />,
   };
-  const filteredBriefings = apiBriefings.map((b) => ({
+  const apiBriefingCards = apiBriefings.map((b) => ({
     id: b.id,
     title: b.title,
     description: b.error ? "Could not fetch latest." : "Latest from your source",
@@ -84,6 +105,8 @@ const Index = () => {
     icon: sourceIconMap[b.source_type] ?? <Globe className="w-5 h-5" />,
     audioUrl: "",
   }));
+
+  const filteredBriefings = [...favouriteBriefings, ...apiBriefingCards];
 
   const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
 
