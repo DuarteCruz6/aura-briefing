@@ -2,13 +2,6 @@ import { Play, Pause, SkipForward, SkipBack, Volume2, Gauge } from "lucide-react
 import { useState } from "react";
 import { motion } from "framer-motion";
 
-const chapters = [
-  { label: "Markets", position: 10 },
-  { label: "AI Update", position: 30 },
-  { label: "Climate", position: 55 },
-  { label: "Politics", position: 78 },
-];
-
 export function AudioPlayer() {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(32);
@@ -75,11 +68,7 @@ export function AudioPlayer() {
               </div>
               {/* Chapter markers */}
               {chapters.map((ch) => (
-                <div
-                  key={ch.label}
-                  className="absolute top-1/2 -translate-y-1/2"
-                  style={{ left: `${ch.position}%` }}
-                >
+                <div key={ch.label} className="absolute top-1/2 -translate-y-1/2" style={{ left: `${ch.position}%` }}>
                   <div className="w-1 h-3 bg-muted-foreground/40 rounded-full" />
                   <span className="absolute top-4 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                     {ch.label}
