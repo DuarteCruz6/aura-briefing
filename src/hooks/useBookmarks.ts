@@ -1,5 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
-import { api, type BookmarkEntry } from "../lib/api";
+import { useState, useCallback } from "react";
 
 export interface BookmarkedBriefing {
   title: string;
@@ -10,71 +9,49 @@ export interface BookmarkedBriefing {
   bookmarkedAt: string;
 }
 
-function toBookmarkedBriefing(b: BookmarkEntry): BookmarkedBriefing {
-  return {
-    title: b.title,
-    description: b.description ?? "",
-    duration: b.duration ?? "",
-    topics: b.topics ?? [],
-    confidence: 85,
-    bookmarkedAt: b.created_at ?? new Date().toISOString(),
-  };
+const STORAGE_KEY = "briefcast_bookmarks";
+
+function load(): BookmarkedBriefing[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function save(items: BookmarkedBriefing[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 }
 
 export function useBookmarks() {
-  const [entries, setEntries] = useState<BookmarkEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadBookmarks = useCallback(() => {
-    api
-      .getBookmarks()
-      .then(setEntries)
-      .catch(() => setEntries([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadBookmarks();
-  }, [loadBookmarks]);
-
-  const bookmarks = entries.map(toBookmarkedBriefing);
+  const [bookmarks, setBookmarks] = useState<BookmarkedBriefing[]>(load);
 
   const isBookmarked = useCallback(
-    (title: string) => entries.some((b) => b.title === title),
-    [entries]
+    (title: string) => bookmarks.some((b) => b.title === title),
+    [bookmarks]
   );
 
   const toggleBookmark = useCallback(
     (briefing: Omit<BookmarkedBriefing, "bookmarkedAt">) => {
-      const existing = entries.find((b) => b.title === briefing.title);
-      if (existing) {
-        api
-          .deleteBookmark(existing.id)
-          .then(() => setEntries((prev) => prev.filter((b) => b.title !== briefing.title)))
-          .catch(() => {});
-      } else {
-        api
-          .addBookmark({
-            title: briefing.title,
-            description: briefing.description || undefined,
-            duration: briefing.duration || undefined,
-            topics: briefing.topics,
-            summary: undefined,
-            audio_url: undefined,
-          })
-          .then((created) => setEntries((prev) => [...prev, created]))
-          .catch(() => {});
-      }
+      setBookmarks((prev) => {
+        const exists = prev.some((b) => b.title === briefing.title);
+        const next = exists
+          ? prev.filter((b) => b.title !== briefing.title)
+          : [...prev, { ...briefing, bookmarkedAt: new Date().toISOString() }];
+        save(next);
+        return next;
+      });
     },
-    [entries]
+    []
   );
 
   const removeBookmark = useCallback((title: string) => {
-    const existing = entries.find((b) => b.title === title);
-    if (existing) {
-      api.deleteBookmark(existing.id).then(() => setEntries((prev) => prev.filter((b) => b.title !== title))).catch(() => {});
-    }
-  }, [entries]);
+    setBookmarks((prev) => {
+      const next = prev.filter((b) => b.title !== title);
+      save(next);
+      return next;
+    });
+  }, []);
 
-  return { bookmarks, isBookmarked, toggleBookmark, removeBookmark, loading };
+  return { bookmarks, isBookmarked, toggleBookmark, removeBookmark, loading: false };
 }
