@@ -126,10 +126,13 @@ def build_briefing_video(
         # 3) Compose video: image for full duration + audio
         try:
             from moviepy.editor import AudioFileClip, ImageClip
-        except ImportError as e:
-            raise ImportError(
-                "moviepy is required for video generation. Install with: pip install moviepy"
-            ) from e
+        except ImportError:
+            try:
+                from moviepy import AudioFileClip, ImageClip
+            except ImportError as e:
+                raise ImportError(
+                    "moviepy is required for video generation. Install with: pip install moviepy"
+                ) from e
 
         audio_clip = AudioFileClip(str(wav_path))
         # Use actual audio duration in case TTS length differs
