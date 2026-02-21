@@ -1,0 +1,16 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - newsletter_data:/app/data
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=development
+    # Optional: override DB path via env
+    # - DATABASE_URL=sqlite:///./data/newsletter.db
+
+volumes:
+  newsletter_data:
