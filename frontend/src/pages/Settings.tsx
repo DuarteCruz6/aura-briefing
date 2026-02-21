@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, Check } from "lucide-react";
+import { api } from "@/lib/api";
+import { ArrowLeft, Check, Loader2, Wifi, WifiOff } from "lucide-react";
 
 const briefingLengths = [
   { value: 3, label: "3 min", desc: "Quick headlines" },
@@ -22,6 +23,14 @@ const Settings = () => {
   const navigate = useNavigate();
   const [briefingLength, setBriefingLength] = useState(7);
   const [voiceStyle, setVoiceStyle] = useState("professional");
+  const [backendOk, setBackendOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api
+      .getHealth()
+      .then(() => setBackendOk(true))
+      .catch(() => setBackendOk(false));
+  }, []);
 
   if (!user) return null;
 
@@ -36,6 +45,28 @@ const Settings = () => {
 
           <h1 className="font-display text-2xl font-bold text-foreground mb-1">Profile & Settings</h1>
           <p className="text-sm text-muted-foreground mb-8">Customize your briefing experience</p>
+
+          {/* Backend status */}
+          <Section title="Backend">
+            <div className="flex items-center gap-2 text-sm">
+              {backendOk === null ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <span className="text-muted-foreground">Checking connection…</span>
+                </>
+              ) : backendOk ? (
+                <>
+                  <Wifi className="w-4 h-4 text-green-500" />
+                  <span className="text-foreground">Connected to backend</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4 text-destructive" />
+                  <span className="text-muted-foreground">Backend unreachable (is it running on port 8000?)</span>
+                </>
+              )}
+            </div>
+          </Section>
 
           {/* Profile */}
           <Section title="Profile">
