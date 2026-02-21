@@ -13,6 +13,13 @@ export function AudioPlayer() {
     setSpeed(speeds[(idx + 1) % speeds.length]);
   };
 
+  const chapters = [
+    { label: "Headlines", position: 15 },
+    { label: "Markets", position: 40 },
+    { label: "Tech", position: 65 },
+    { label: "Weather", position: 85 },
+  ];
+
   return (
     <motion.div
       initial={{ y: 60 }}
