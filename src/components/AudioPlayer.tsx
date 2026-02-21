@@ -10,6 +10,15 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// Chapter markers for the timeline
+const CHAPTERS = [
+  { label: "Intro", pct: 0 },
+  { label: "World", pct: 15 },
+  { label: "Tech", pct: 35 },
+  { label: "Ireland", pct: 60 },
+  { label: "Sports", pct: 80 },
+];
+
 interface AudioPlayerProps {
   src?: string;
   trackTitle?: string;
@@ -21,7 +30,7 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
-  const [speedIndex, setSpeedIndex] = useState(2); // default 1x
+  const [speedIndex, setSpeedIndex] = useState(2);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -41,7 +50,6 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     };
   }, []);
 
-  // Auto-play when src changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !src) return;
@@ -53,11 +61,7 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
+    if (playing) audio.pause(); else audio.play();
     setPlaying(!playing);
   }, [playing]);
 
@@ -90,6 +94,12 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     if (audioRef.current) audioRef.current.volume = pct;
   }, []);
 
+  const jumpToChapter = useCallback((pct: number) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    audio.currentTime = (pct / 100) * duration;
+  }, [duration]);
+
   return (
     <motion.div
       initial={{ y: 60 }}
@@ -101,8 +111,15 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
       <div className="flex items-center gap-6">
         {/* Now playing info */}
         <div className="flex items-center gap-3 min-w-[200px]">
-          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
-            <div className={`w-3 h-3 rounded-full bg-primary ${playing ? "animate-pulse-glow" : ""}`} />
+          <div className="relative w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+            {playing && (
+              <motion.div
+                animate={{ scale: [1, 1.5], opacity: [0.4, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="absolute inset-0 rounded-lg bg-primary/20"
+              />
+            )}
+            <div className={`w-3 h-3 rounded-full bg-primary ${playing ? "animate-pulse" : ""}`} />
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">{trackTitle || "Select a briefing"}</p>
@@ -111,7 +128,7 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
         </div>
 
         {/* Controls + timeline */}
-        <div className="flex-1 flex flex-col items-center gap-1.5">
+        <div className="flex-1 flex flex-col items-center gap-1">
           <div className="flex items-center gap-4">
             <button onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground transition-colors" title="Back 10s">
               <RotateCcw className="w-4 h-4" />
@@ -120,31 +137,56 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
               onClick={togglePlay}
               className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center hover:scale-105 transition-transform"
             >
-              {playing ? (
-                <Pause className="w-4 h-4 text-background" />
-              ) : (
-                <Play className="w-4 h-4 text-background ml-0.5" />
-              )}
+              {playing ? <Pause className="w-4 h-4 text-background" /> : <Play className="w-4 h-4 text-background ml-0.5" />}
             </button>
             <button onClick={() => skip(10)} className="text-muted-foreground hover:text-foreground transition-colors" title="Forward 10s">
               <RotateCw className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Timeline */}
-          <div className="w-full max-w-xl flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
-            <div className="flex-1 relative group cursor-pointer" onClick={handleSeek}>
-              <div className="h-1 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full relative transition-all duration-100"
-                  style={{ width: `${progress}%` }}
-                >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          {/* Timeline with chapter markers */}
+          <div className="w-full max-w-xl flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
+              <div className="flex-1 relative group cursor-pointer" onClick={handleSeek}>
+                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full relative transition-all duration-100"
+                    style={{ width: `${progress}%` }}
+                  >
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" />
+                  </div>
                 </div>
+                {/* Chapter markers */}
+                {CHAPTERS.map((ch) => (
+                  <button
+                    key={ch.label}
+                    onClick={(e) => { e.stopPropagation(); jumpToChapter(ch.pct); }}
+                    className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-muted-foreground/50 hover:bg-primary hover:scale-150 transition-all z-10"
+                    style={{ left: `${ch.pct}%` }}
+                    title={ch.label}
+                  />
+                ))}
               </div>
+              <span className="text-[10px] text-muted-foreground tabular-nums w-8">{duration > 0 ? formatTime(duration) : "--:--"}</span>
             </div>
-            <span className="text-[10px] text-muted-foreground tabular-nums w-8">{duration > 0 ? formatTime(duration) : "--:--"}</span>
+            {/* Chapter labels */}
+            <div className="flex items-center relative ml-10 mr-8">
+              {CHAPTERS.map((ch, i) => (
+                <button
+                  key={ch.label}
+                  onClick={() => jumpToChapter(ch.pct)}
+                  className={`absolute text-[9px] font-medium transition-colors -translate-x-1/2 ${
+                    progress >= ch.pct && (i === CHAPTERS.length - 1 || progress < CHAPTERS[i + 1].pct)
+                      ? "text-primary"
+                      : "text-muted-foreground/60 hover:text-muted-foreground"
+                  }`}
+                  style={{ left: `${ch.pct}%` }}
+                >
+                  {ch.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
