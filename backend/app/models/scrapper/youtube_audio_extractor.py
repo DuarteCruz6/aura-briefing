@@ -45,7 +45,7 @@ def _get_youtube_api_key() -> str:
         return ""
 
 
-def _fetch_metadata(video_id: str, api_key: str) -> dict | None:
+def _fetch_metadata_api(video_id: str, api_key: str) -> dict | None:
     """Fetch video snippet (title, description, channelTitle) from YouTube Data API v3."""
     if not api_key:
         return None
@@ -66,6 +66,25 @@ def _fetch_metadata(video_id: str, api_key: str) -> dict | None:
         "title": snippet.get("title") or "",
         "description": snippet.get("description") or "",
         "channel": snippet.get("channelTitle") or snippet.get("channelId") or "",
+    }
+
+
+def _fetch_metadata_oembed(video_id: str) -> dict | None:
+    """Fetch title and channel from YouTube oEmbed (no API key required). No description."""
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    oembed_url = "https://www.youtube.com/oembed"
+    params = {"url": video_url, "format": "json"}
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(oembed_url, params=params)
+            r.raise_for_status()
+            data = r.json()
+    except Exception:
+        return None
+    return {
+        "title": data.get("title") or "",
+        "description": "",  # oEmbed does not provide description
+        "channel": data.get("author_name") or "",
     }
 
 
@@ -122,7 +141,10 @@ def extract_audio(
         return (None, None, "Invalid or unsupported YouTube URL (could not extract video ID)")
 
     api_key = _get_youtube_api_key()
-    metadata = _fetch_metadata(video_id, api_key)
+    metadata = _fetch_metadata_api(video_id, api_key)
+    if not metadata:
+        # Fallback: oEmbed gives title + channel without API key (no description)
+        metadata = _fetch_metadata_oembed(video_id)
     transcript, transcript_error = _fetch_transcript(video_id)
 
     # If we have transcript (including empty string), success
