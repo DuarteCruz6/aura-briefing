@@ -1,4 +1,4 @@
-import { Home, Compass, Bookmark, Settings, ChevronLeft, ChevronRight, Sun, Moon, Heart } from "lucide-react";
+import { Home, Compass, Bookmark, Settings, Sun, Moon, Heart } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,9 +20,11 @@ const bottomItems = [
 ];
 
 export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("briefcast_theme") || "dark");
   const navigate = useNavigate();
+
+  const collapsed = !hovered;
 
   useEffect(() => {
     document.documentElement.classList.remove("light", "dark");
@@ -32,8 +34,10 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
 
   return (
     <motion.aside
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       animate={{ width: collapsed ? 72 : 240 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
+      transition={{ duration: 0.25, ease: "easeInOut" }}
       className="h-full hidden sm:flex flex-col border-r border-border/50 bg-sidebar py-6 overflow-hidden flex-shrink-0"
     >
       {/* Logo */}
@@ -121,16 +125,6 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
               </motion.span>
             )}
           </AnimatePresence>
-        </button>
-      </div>
-
-      {/* Collapse toggle */}
-      <div className="px-3">
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="nav-item w-full justify-center"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
       </div>
     </motion.aside>
