@@ -2,7 +2,6 @@ import { Play, Pause, Volume2, RotateCcw, RotateCw } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 
-const DEMO_AUDIO_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 function formatTime(seconds: number): string {
@@ -11,7 +10,12 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function AudioPlayer() {
+interface AudioPlayerProps {
+  src?: string;
+  trackTitle?: string;
+}
+
+export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -36,6 +40,15 @@ export function AudioPlayer() {
       audio.removeEventListener("ended", onEnd);
     };
   }, []);
+
+  // Auto-play when src changes
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !src) return;
+    audio.src = src;
+    audio.load();
+    audio.play().then(() => setPlaying(true)).catch(() => {});
+  }, [src]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
@@ -84,7 +97,7 @@ export function AudioPlayer() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="sticky bottom-0 z-40 glass-panel-strong border-t border-border/50 px-6 py-3"
     >
-      <audio ref={audioRef} src={DEMO_AUDIO_URL} preload="metadata" />
+      <audio ref={audioRef} preload="metadata" />
       <div className="flex items-center gap-6">
         {/* Now playing info */}
         <div className="flex items-center gap-3 min-w-[200px]">
@@ -92,8 +105,8 @@ export function AudioPlayer() {
             <div className={`w-3 h-3 rounded-full bg-primary ${playing ? "animate-pulse-glow" : ""}`} />
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">Demo Track</p>
-            <p className="text-xs text-muted-foreground">SoundHelix · {duration > 0 ? formatTime(duration) : "--:--"}</p>
+            <p className="text-sm font-medium text-foreground">{trackTitle || "Select a briefing"}</p>
+            <p className="text-xs text-muted-foreground">{duration > 0 ? formatTime(duration) : "--:--"}</p>
           </div>
         </div>
 
