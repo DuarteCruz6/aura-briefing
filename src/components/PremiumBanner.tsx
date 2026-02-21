@@ -1,5 +1,7 @@
-import { Crown, Video, Sparkles, Check, X } from "lucide-react";
+import { Crown, Video, Sparkles, Check, X, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 interface PremiumBannerProps {
   showPopup: boolean;
@@ -7,6 +9,28 @@ interface PremiumBannerProps {
 }
 
 export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) {
+  const [trialStarted, setTrialStarted] = useState(() => {
+    return localStorage.getItem("briefcast_trial") === "active";
+  });
+
+  const handleStartTrial = () => {
+    localStorage.setItem("briefcast_trial", "active");
+    localStorage.setItem("briefcast_trial_start", new Date().toISOString());
+    setTrialStarted(true);
+    toast({ title: "🎉 Trial Activated!", description: "You now have 7 days of Premium access. Enjoy!" });
+    onPopupChange(false);
+  };
+
+  const handleBuyNow = () => {
+    toast({ title: "💳 Redirecting to checkout…", description: "This is a demo — no real charge." });
+    setTimeout(() => {
+      localStorage.setItem("briefcast_trial", "active");
+      setTrialStarted(true);
+      toast({ title: "✅ Premium Unlocked!", description: "Welcome to BriefCast Premium." });
+      onPopupChange(false);
+    }, 1500);
+  };
+
   return (
     <>
       <motion.section
@@ -99,10 +123,22 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
                 </div>
               </div>
 
-              <button className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
-                Start 7-Day Free Trial
+              <button
+                onClick={handleStartTrial}
+                disabled={trialStarted}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {trialStarted ? "✓ Trial Active" : "Start 7-Day Free Trial"}
               </button>
-              <p className="text-xs text-muted-foreground text-center mt-3">Cancel anytime. No charge for 7 days.</p>
+
+              <button
+                onClick={handleBuyNow}
+                className="w-full py-3 rounded-xl bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 mt-2"
+              >
+                <Zap className="w-4 h-4" />
+                Buy Now — €10/mo
+              </button>
+              <p className="text-xs text-muted-foreground text-center mt-3">Cancel anytime. No charge during trial.</p>
             </motion.div>
           </motion.div>
         )}
