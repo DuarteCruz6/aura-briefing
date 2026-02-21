@@ -33,7 +33,7 @@ const Auth = () => {
       >
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <img src={logo} alt="Briefcast" className="h-14 object-contain" />
+          <img src={logo} alt="Briefcast" className="h-20 object-contain" />
           <span className="font-display text-2xl font-bold text-foreground tracking-tight">Briefcast</span>
         </div>
 
