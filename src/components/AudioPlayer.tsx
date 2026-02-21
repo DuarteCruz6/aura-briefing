@@ -179,12 +179,12 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange 
         <div className="flex items-center gap-2 sm:gap-3 sm:min-w-[140px] justify-end">
           <button
             onClick={cycleSpeed}
-            className="text-xs font-medium text-muted-foreground px-2 py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors"
+            className="text-xs font-medium text-muted-foreground w-10 text-center py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors shrink-0"
           >
             {SPEED_OPTIONS[speedIndex]}x
           </button>
           <div className="hidden sm:flex items-center gap-2">
-            <Volume2 className="w-4 h-4 text-muted-foreground" />
+            <Volume2 className="w-4 h-4 text-muted-foreground shrink-0" />
             <div className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onClick={handleVolumeChange}>
               <div className="h-full bg-muted-foreground rounded-full" style={{ width: `${volume * 100}%` }} />
             </div>
