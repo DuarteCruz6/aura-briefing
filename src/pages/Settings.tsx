@@ -66,6 +66,17 @@ const Settings = () => {
       .catch(() => setBackendOk(false));
   }, []);
 
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((s) => {
+        const f = s.briefing_frequency || "daily";
+        setFrequency(f);
+        localStorage.setItem("briefcast_frequency", f);
+      })
+      .catch(() => {});
+  }, []);
+
   if (!user) return null;
 
   return (
@@ -175,7 +186,11 @@ const Settings = () => {
               {briefingFrequencies.map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => { setFrequency(opt.value); localStorage.setItem("briefcast_frequency", opt.value); }}
+                  onClick={() => {
+                    setFrequency(opt.value);
+                    localStorage.setItem("briefcast_frequency", opt.value);
+                    api.updateSettings({ briefing_frequency: opt.value }).catch(() => {});
+                  }}
                   className={`glass-panel rounded-xl p-4 text-center transition-all border ${
                     frequency === opt.value
                       ? "border-primary/50 bg-primary/10"

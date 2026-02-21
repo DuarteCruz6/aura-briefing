@@ -26,3 +26,9 @@ class User(Base):
     topic_preferences: Mapped[list["UserTopicPreference"]] = relationship(
         "UserTopicPreference", back_populates="user", cascade="all, delete-orphan"
     )
+    settings: Mapped[list["UserSetting"]] = relationship(
+        "UserSetting", back_populates="user", cascade="all, delete-orphan"
+    )
+    bookmarks: Mapped[list["Bookmark"]] = relationship(
+        "Bookmark", back_populates="user", cascade="all, delete-orphan"
+    )

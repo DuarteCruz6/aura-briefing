@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { SourcesSection } from "../components/SourcesSection";
-import { ArrowLeft, Search, Sparkles, TrendingUp, Plus, X, Heart } from "lucide-react";
+import { ArrowLeft, Search, Sparkles, TrendingUp, Plus, X, Heart, Loader2 } from "lucide-react";
 import { useFavourites } from "../hooks/useFavourites";
 import { toast } from "sonner";
+import { api, type TopicPreference } from "../lib/api";
 
 const topics = [
   { id: "ai", label: "AI & Technology", emoji: "🤖", desc: "Artificial intelligence, gadgets & innovation" },
@@ -39,43 +40,103 @@ const trendingNow = [
   { label: "Mars Rover Discovery", emoji: "🔭", category: "Science" },
 ];
 
+const topicIds = new Set(topics.map((t) => t.id));
+
 const Explore = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [customInterests, setCustomInterests] = useState<string[]>(() => {
-    const stored = localStorage.getItem("briefcast_custom_interests");
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [topicPrefs, setTopicPrefs] = useState<TopicPreference[]>([]);
+  const [prefsLoading, setPrefsLoading] = useState(true);
   const { addFavourite, removeFavourite, isFavourite } = useFavourites();
 
-  const toggleFav = (item: { id: string; type: "topic" | "region" | "interest" | "source"; label: string; emoji?: string; desc?: string; url?: string; platform?: string }) => {
-    if (isFavourite(item.id, item.type)) {
-      removeFavourite(item.id, item.type);
-      toast.success(`Removed "${item.label}" from favourites`);
+  const loadPrefs = useCallback(() => {
+    api.getPreferencesTopics().then(setTopicPrefs).catch(() => setTopicPrefs([])).finally(() => setPrefsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadPrefs();
+  }, [loadPrefs]);
+
+  const topicPrefTopics = useMemo(() => new Set(topicPrefs.map((p) => p.topic)), [topicPrefs]);
+  const customInterests = useMemo(() => topicPrefs.filter((p) => !topicIds.has(p.topic)).map((p) => p.topic), [topicPrefs]);
+  const isTopicFaved = useCallback((topicId: string) => topicPrefTopics.has(topicId), [topicPrefTopics]);
+
+  const toggleTopicFav = (topic: { id: string; label: string }) => {
+    if (isTopicFaved(topic.id)) {
+      const pref = topicPrefs.find((p) => p.topic === topic.id);
+      if (pref) {
+        api.deletePreferencesTopic(pref.id).then(() => {
+          setTopicPrefs((prev) => prev.filter((p) => p.id !== pref.id));
+          toast.success(`Removed "${topic.label}" from favourites`);
+        }).catch(() => toast.error("Failed to remove"));
+      }
     } else {
-      addFavourite(item);
-      toast.success(`Added "${item.label}" to favourites`);
+      api.addPreferencesTopic(topic.id).then((created) => {
+        setTopicPrefs((prev) => [...prev, created]);
+        toast.success(`Added "${topic.label}" to favourites`);
+      }).catch((e) => toast.error(e instanceof Error ? e.message : "Failed to add"));
+    }
+  };
+
+  const toggleFav = (item: { id: string; type: "topic" | "region" | "interest" | "source"; label: string; emoji?: string; desc?: string; url?: string; platform?: string }) => {
+    if (item.type === "topic") {
+      toggleTopicFav({ id: item.id, label: item.label });
+      return;
+    }
+    if (item.type === "region") {
+      if (isFavourite(item.id, "region")) {
+        removeFavourite(item.id, "region");
+        toast.success(`Removed "${item.label}" from favourites`);
+      } else {
+        addFavourite(item);
+        toast.success(`Added "${item.label}" to favourites`);
+      }
+      return;
+    }
+    if (item.type === "interest") {
+      const pref = topicPrefs.find((p) => p.topic === item.id);
+      if (pref) {
+        api.deletePreferencesTopic(pref.id).then(() => {
+          setTopicPrefs((prev) => prev.filter((p) => p.id !== pref.id));
+          toast.success(`Removed "${item.label}" from favourites`);
+        }).catch(() => toast.error("Failed to remove"));
+      }
+      return;
+    }
+    if (item.type === "source") {
+      if (isFavourite(item.id, "source")) {
+        removeFavourite(item.id, "source");
+        toast.success(`Removed "${item.label}" from favourites`);
+      } else {
+        addFavourite(item);
+        toast.success(`Added "${item.label}" to favourites`);
+      }
     }
   };
 
   const addInterest = () => {
     const trimmed = search.trim();
-    if (!trimmed || customInterests.includes(trimmed)) return;
-    const updated = [...customInterests, trimmed];
-    setCustomInterests(updated);
-    localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
-    setSearch("");
+    if (!trimmed || topicPrefTopics.has(trimmed)) return;
+    api.addPreferencesTopic(trimmed).then((created) => {
+      setTopicPrefs((prev) => [...prev, created]);
+      setSearch("");
+      toast.success("Interest added!");
+    }).catch((e) => toast.error(e instanceof Error ? e.message : "Failed to add"));
   };
 
   const removeInterest = (interest: string) => {
-    const updated = customInterests.filter((i) => i !== interest);
-    setCustomInterests(updated);
-    localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
+    const pref = topicPrefs.find((p) => p.topic === interest);
+    if (pref) {
+      api.deletePreferencesTopic(pref.id).then(() => {
+        setTopicPrefs((prev) => prev.filter((p) => p.id !== pref.id));
+        toast.success("Interest removed");
+      }).catch(() => toast.error("Failed to remove"));
+    }
   };
 
   const filteredTopics = useMemo(
-    () => topics.filter((t) => !isFavourite(t.id, "topic") && (t.label.toLowerCase().includes(search.toLowerCase()) || t.desc.toLowerCase().includes(search.toLowerCase()))),
-    [search, isFavourite]
+    () => topics.filter((t) => !isTopicFaved(t.id) && (t.label.toLowerCase().includes(search.toLowerCase()) || t.desc.toLowerCase().includes(search.toLowerCase()))),
+    [search, isTopicFaved]
   );
 
   const filteredRegions = useMemo(
@@ -84,8 +145,8 @@ const Explore = () => {
   );
 
   const filteredCustom = useMemo(
-    () => customInterests.filter((c) => !isFavourite(c, "interest") && c.toLowerCase().includes(search.toLowerCase())),
-    [search, customInterests, isFavourite]
+    () => customInterests.filter((c) => c.toLowerCase().includes(search.toLowerCase())),
+    [search, customInterests]
   );
 
   const showTopics = filteredTopics.length > 0;
