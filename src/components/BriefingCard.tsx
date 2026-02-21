@@ -18,7 +18,7 @@ interface BriefingCardProps {
   onPlay?: (audioUrl: string, title: string) => void;
   onPause?: () => void;
   onPremiumClick?: () => void;
-  onVideoClick?: (title: string) => void;
+  onVideoClick?: (briefing: { title: string; summary?: string }) => void;
 }
 
 function getConfidenceColor(c: number) {
@@ -96,7 +96,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
               onClick={(e) => {
                 e.stopPropagation();
                 if (isPremium) {
-                  onVideoClick?.(title);
+                  onVideoClick?.({ title, summary });
                 } else {
                   onPremiumClick?.();
                 }

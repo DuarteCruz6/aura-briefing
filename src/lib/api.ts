@@ -93,6 +93,35 @@ export const api = {
     const res = await fetch(url(`/sources/${sourceId}`), { method: "DELETE" });
     if (!res.ok) throw new Error(`Failed to delete source: ${res.status}`);
   },
+
+  /**
+   * Generate video briefing (TTS + simple visual). Premium only; send isPremium true to set header.
+   * Returns blob for the MP4 file.
+   */
+  async generateVideo(
+    payload: { title: string; summary: string },
+    isPremium: boolean
+  ): Promise<Blob> {
+    const res = await fetch(url("/video/generate"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(isPremium ? { "X-Premium": "true" } : {}),
+      },
+      body: JSON.stringify({
+        title: payload.title,
+        summary: payload.summary,
+      }),
+    });
+    if (res.status === 403) {
+      throw new Error("Premium subscription required to generate video briefings");
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Video generation failed: ${res.status}`);
+    }
+    return res.blob();
+  },
 };
 
 export interface SourceEntry {

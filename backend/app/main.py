@@ -50,6 +50,13 @@ class PodcastFromUrlsRequest(BaseModel):
     model_id: str | None = None
 
 
+class VideoGenerateRequest(BaseModel):
+    """Generate a video briefing: TTS from summary + simple visual (gradient + title). Premium only."""
+    title: str
+    summary: str
+    topics: list[str] | None = None
+
+
 class SourceCreateRequest(BaseModel):
     type: str  # "youtube", "x", "linkedin", "news", "podcast"
     url: str
@@ -714,6 +721,61 @@ async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session =
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
+VIDEO_OUTPUT_DIR = Path("/tmp/video_briefings")
+
+# Header expected for premium-only video generation
+PREMIUM_HEADER = "x-premium"
+
+
+@app.post("/video/generate")
+async def generate_video(
+    body: VideoGenerateRequest,
+    request: Request,
+):
+    """
+    Generate a video briefing: TTS from summary + gradient frame with title.
+    Premium only (requires header X-Premium: true). Returns MP4.
+    """
+    if request.headers.get(PREMIUM_HEADER, "").strip().lower() != "true":
+        raise HTTPException(
+            status_code=403,
+            detail="Premium subscription required to generate video briefings",
+        )
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; video generation unavailable",
+        )
+
+    title = (body.title or "").strip()
+    summary = (body.summary or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    if not summary:
+        raise HTTPException(status_code=400, detail="summary is required")
+
+    VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = VIDEO_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp4"
+
+    try:
+        from app.models.video_generation import build_briefing_video
+
+        path_str = await asyncio.to_thread(
+            build_briefing_video,
+            title,
+            summary,
+            output_path,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return FileResponse(
+        path_str,
+        media_type="video/mp4",
+        filename="briefing.mp4",
+    )
 
 
 @app.post("/podcast/generate")
