@@ -1,0 +1,9 @@
+# Railway config for backend service
+# Set this service's Root Directory to "backend" in the Railway dashboard.
+
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30

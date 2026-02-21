@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - newsletter_data:/app/data
+    env_file:
+      - backend/.env
+    environment:
+      - ENVIRONMENT=development
+
+volumes:
+  newsletter_data:
