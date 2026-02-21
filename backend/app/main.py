@@ -303,13 +303,17 @@ async def generate_podcast(body: PodcastGenerateRequest):
     PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp3"
 
+    # Treat placeholder "string" (e.g. from OpenAPI/Swagger) as unset
+    voice_id = body.voice_id if (body.voice_id and body.voice_id.strip().lower() != "string") else None
+    model_id = body.model_id if (body.model_id and body.model_id.strip().lower() != "string") else None
+
     try:
         path_str, duration_seconds = await asyncio.to_thread(
             text_to_audio,
             text,
             output_path,
-            voice_id=body.voice_id or DEFAULT_VOICE_ID,
-            model_id=body.model_id or DEFAULT_MODEL_ID,
+            voice_id=voice_id or DEFAULT_VOICE_ID,
+            model_id=model_id or DEFAULT_MODEL_ID,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
