@@ -31,7 +31,7 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
       const res = await fetch("https://api.stripe.com/v1/subscription_schedules", {
         method: "POST",
         headers: {
-          "Authorization": "Basic " + btoa("sk_test_51LHrRJSF15KCJB9H9jwN566bkeX4CBfZcgDCNfz6IKl9TgsEapwawQyefdKS1bnrrb5buK88tL7zruiugLykR4gO00qnef4fve:"),
+          "Authorization": "Bearer sk_test_51LHrRJSF15KCJB9H9jwN566bkeX4CBfZcgDCNfz6IKl9TgsEapwawQyefdKS1bnrrb5buK88tL7zruiugLykR4gO00qnef4fve",
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
