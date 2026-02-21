@@ -26,6 +26,10 @@ class TranscribeRequest(BaseModel):
     url: str
 
 
+class MultiUrlRequest(BaseModel):
+    urls: list[str]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -204,6 +208,23 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
             detail="Extraction failed or URL type not supported yet",
         )
     return result
+
+
+@app.post("/summaries/multi-url")
+async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(get_db)):
+    """
+    Get or extract content for each URL (same as get-or-extract per URL), then generate
+    a single ~3-minute text summary of all content via Gemini.
+    """
+    from app.services.multi_url_summary import get_multi_url_summary
+
+    if not body.urls:
+        raise HTTPException(status_code=400, detail="urls must be a non-empty list")
+    try:
+        summary = await asyncio.to_thread(get_multi_url_summary, body.urls, db)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"summary": summary}
 
 
 # Serve frontend static files when running in Docker (static dir present).
