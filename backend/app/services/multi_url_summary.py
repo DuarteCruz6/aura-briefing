@@ -33,7 +33,11 @@ def get_multi_url_summary(urls: list[str], db: Session) -> str:
 
     item_contents: list[str] = []
     for url in urls:
-        result = get_or_extract_summary(url, db)
+        try:
+            result = get_or_extract_summary(url, db)
+        except ValueError:
+            # e.g. YouTube rate limit ("Too many requests"), transcript unavailable
+            result = None
         if result is None:
             item_contents.append(f"[Source: {url}]\n(Content could not be extracted or URL not supported.)")
         else:
