@@ -41,22 +41,56 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/tables")
-def debug_tables():
-    """List DB tables and row counts (handy for local/dev)."""
+def _get_table_names():
+    """Return list of user table names (no sqlite_*)."""
     with engine.connect() as conn:
         result = conn.execute(
             text(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
             )
         )
-        tables = [row[0] for row in result]
+        return [row[0] for row in result]
+
+
+@app.get("/tables")
+def debug_tables():
+    """List DB tables and row counts (handy for local/dev)."""
+    tables = _get_table_names()
     out = {}
     with engine.connect() as conn:
         for name in tables:
             count = conn.execute(text(f"SELECT COUNT(*) FROM [{name}]")).scalar()
             out[name] = count
     return {"tables": out}
+
+
+@app.get("/tables/{table_name}")
+def debug_table_contents(table_name: str, limit: int = 100):
+    """
+    Return the contents of a table as a list of rows (dicts).
+    Table name is whitelisted. Use query param limit (default 100, max 1000).
+    """
+    allowed = _get_table_names()
+    if table_name not in allowed:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown table. Allowed: {', '.join(allowed)}",
+        )
+    cap = min(max(1, limit), 1000)
+    with engine.connect() as conn:
+        result = conn.execute(
+            text(f"SELECT * FROM [{table_name}] LIMIT :cap"),
+            {"cap": cap},
+        )
+        keys = result.keys()
+        rows = [dict(zip(keys, row)) for row in result]
+    # Make values JSON-serializable (e.g. datetime -> isoformat)
+    for row in rows:
+        for k, v in row.items():
+            if hasattr(v, "isoformat"):
+                row[k] = v.isoformat()
+    return {"table": table_name, "limit": cap, "rows": rows}
+
 
 @app.post("/transcribe")
 async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_db)):
