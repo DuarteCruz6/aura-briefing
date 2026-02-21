@@ -21,14 +21,45 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
     onPopupChange(false);
   };
 
-  const handleBuyNow = () => {
-    toast({ title: "💳 Redirecting to checkout…", description: "This is a demo — no real charge." });
-    setTimeout(() => {
-      localStorage.setItem("briefcast_trial", "active");
-      setTrialStarted(true);
-      toast({ title: "✅ Premium Unlocked!", description: "Welcome to BriefCast Premium." });
-      onPopupChange(false);
-    }, 1500);
+  const [buyLoading, setBuyLoading] = useState(false);
+
+  const handleBuyNow = async () => {
+    setBuyLoading(true);
+    toast({ title: "💳 Creating subscription…", description: "Connecting to Stripe…" });
+
+    try {
+      const res = await fetch("https://api.stripe.com/v1/subscription_schedules", {
+        method: "POST",
+        headers: {
+          "Authorization": "Basic " + btoa("sk_test_51LHrRJSF15KCJB9H9jwN566bkeX4CBfZcgDCNfz6IKl9TgsEapwawQyefdKS1bnrrb5buK88tL7zruiugLykR4gO00qnef4fve:"),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          "end_behavior": "cancel",
+          "phases[0][currency]": "eur",
+          "phases[0][items][0][price]": "price_1T3IWkSF15KCJB9HDzc1SvGh",
+          "phases[0][items][0][quantity]": "1",
+          "phases[0][iterations]": "12",
+          "phases[0][proration_behavior]": "none",
+          "start_date": "1772303400",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem("briefcast_trial", "active");
+        setTrialStarted(true);
+        toast({ title: "✅ Premium Unlocked!", description: `Subscription scheduled! ID: ${data.id}` });
+        onPopupChange(false);
+      } else {
+        toast({ title: "⚠️ Stripe Error", description: data.error?.message || "Something went wrong." });
+      }
+    } catch (err) {
+      toast({ title: "❌ Network Error", description: "Could not reach Stripe. Try again." });
+    } finally {
+      setBuyLoading(false);
+    }
   };
 
   return (
@@ -133,10 +164,11 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
 
               <button
                 onClick={handleBuyNow}
-                className="w-full py-3 rounded-xl bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 mt-2"
+                disabled={buyLoading}
+                className="w-full py-3 rounded-xl bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
               >
                 <Zap className="w-4 h-4" />
-                Buy Now — €10/mo
+                {buyLoading ? "Processing…" : "Buy Now — €10/mo"}
               </button>
               <p className="text-xs text-muted-foreground text-center mt-3">Cancel anytime. No charge during trial.</p>
             </motion.div>
