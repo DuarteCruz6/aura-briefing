@@ -17,17 +17,28 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      toast.error("Email is required");
+      return;
+    }
     setLoading(true);
     try {
       const user = await api.getAuthMe({
-        email: email.trim(),
-        name: (name || email.split("@")[0]).trim() || undefined,
+        email: trimmedEmail,
+        name: (name || trimmedEmail.split("@")[0]).trim() || undefined,
       });
-      localStorage.setItem(
-        "briefcast_auth",
-        JSON.stringify({ id: user.id, email: user.email, name: user.name ?? undefined })
-      );
-      navigate("/");
+      if (!user?.email) {
+        toast.error("Invalid response from server");
+        return;
+      }
+      const toStore = {
+        id: user.id,
+        email: user.email,
+        name: user.name ?? (trimmedEmail.split("@")[0] || undefined),
+      };
+      localStorage.setItem("briefcast_auth", JSON.stringify(toStore));
+      navigate("/", { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed");
     } finally {
