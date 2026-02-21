@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     elevenlabs_api_key_stt: str = ""
     elevenlabs_api_key_tts: str = ""
 
+    # YouTube Data API v3 (metadata for YouTube; get key at https://console.cloud.google.com/apis/credentials)
+    youtube_api_key: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -67,43 +67,30 @@ def youtube_url_to_text(
     language_code: str = "eng",
 ) -> dict | None:
     """
-    Get audio from a YouTube URL and convert it to text.
-    Uses youtube_audio_extractor then ElevenLabs STT.
+    Get metadata and transcript for a YouTube URL.
+    Uses youtube_audio_extractor (YouTube Data API + youtube-transcript-api); no audio download.
 
     Args:
         youtube_url: YouTube video URL.
-        output_dir: Directory to save the downloaded audio file.
-        api_key: ElevenLabs API key (optional).
-        model_id: ElevenLabs STT model (default: scribe_v2).
-        language_code: Language code (default: eng).
+        output_dir: Unused; kept for compatibility.
+        api_key: Unused (ElevenLabs not used for YouTube anymore); kept for compatibility.
+        model_id: Unused; kept for compatibility.
+        language_code: Unused; kept for compatibility.
 
     Returns:
-        Dict with keys: channel, title, description, text (transcript). No audio path.
-        None if extraction or transcription fails.
+        Dict with keys: channel, title, description, text (transcript).
+        None if metadata or transcript is unavailable.
     """
     from app.models.scrapper.youtube_audio_extractor import extract_audio
 
-    metadata, audio_path = extract_audio(youtube_url, output_dir)
-    if not metadata or not audio_path:
-        return None
-    try:
-        text = audio_to_text(
-            audio_path,
-            api_key=api_key,
-            model_id=model_id,
-            language_code=language_code,
-        )
-        return {
-            "channel": metadata.get("channel", ""),
-            "title": metadata.get("title", ""),
-            "description": metadata.get("description", ""),
-            "text": text,
-        }
-    except Exception:
-        return None
-    finally:
-        try:
-            if audio_path and os.path.isfile(audio_path):
-                os.remove(audio_path)
-        except OSError:
-            pass
+    metadata, transcript, error = extract_audio(youtube_url, output_dir)
+    if error:
+        raise ValueError(error)
+    if not metadata or transcript is None:
+        raise ValueError("Could not get video metadata or transcript")
+    return {
+        "channel": metadata.get("channel", ""),
+        "title": metadata.get("title", ""),
+        "description": metadata.get("description", ""),
+        "text": transcript,
+    }

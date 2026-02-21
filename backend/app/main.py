@@ -161,9 +161,8 @@ def debug_table_contents(table_name: str, limit: int = 100):
 @app.post("/transcribe")
 async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_db)):
     """
-    Get summary for a YouTube URL: if already in the DB (same table as text URLs),
-    return it; otherwise download, transcribe (ElevenLabs STT), store, and return.
-    Requires ELEVENLABS_API_KEY in env for first-time extraction.
+    Get summary for a YouTube URL: if already in DB return it; else fetch metadata + transcript
+    via YouTube Data API and youtube-transcript-api, store, and return. No audio download.
     """
     url = (body.url or "").strip()
     if not url:
@@ -189,11 +188,14 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
 
     output_dir = "/tmp/transcribe"
     os.makedirs(output_dir, exist_ok=True)
-    result = await asyncio.to_thread(
-        youtube_url_to_text,
-        url,
-        output_dir,
-    )
+    try:
+        result = await asyncio.to_thread(
+            youtube_url_to_text,
+            url,
+            output_dir,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     if result is None:
         raise HTTPException(status_code=502, detail="Extraction or transcription failed")
 
@@ -231,13 +233,13 @@ def get_summary_by_url(url: str, db: Session = Depends(get_db)):
 async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Depends(get_db)):
     """
     Single entry for any URL: YouTube or text (articles, X, LinkedIn, etc.).
-    If in DB returns cached summary; else extracts (YouTube: audio → transcript via ElevenLabs;
+    If in DB returns cached summary; else extracts (YouTube: metadata + transcript via YouTube API;
     text: fetch page → Gemini), saves, and returns. Response is the summary JSON (e.g. title, text, channel, description).
     """
     url = (body.url or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
-    from app.services import get_or_extract_summary, _is_youtube_url
+    from app.services import get_or_extract_summary
 
     if _is_youtube_url(url) and not os.getenv("ELEVENLABS_API_KEY_STT"):
         raise HTTPException(
@@ -245,6 +247,10 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
             detail="ELEVENLABS_API_KEY_STT not set; YouTube transcription unavailable",
         )
     result = await asyncio.to_thread(get_or_extract_summary, url, db)
+    try:
+        result = await asyncio.to_thread(get_or_extract_summary, url, db)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     if result is None:
         raise HTTPException(
             status_code=502,
