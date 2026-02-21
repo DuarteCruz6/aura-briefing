@@ -1,10 +1,12 @@
 import { Crown, Video, Sparkles, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
 
-export function PremiumBanner() {
-  const [showPopup, setShowPopup] = useState(false);
+interface PremiumBannerProps {
+  showPopup: boolean;
+  onPopupChange: (open: boolean) => void;
+}
 
+export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) {
   return (
     <>
       <motion.section
@@ -12,7 +14,7 @@ export function PremiumBanner() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.5 }}
         className="glass-panel p-6 mt-8 relative overflow-hidden cursor-pointer group"
-        onClick={() => setShowPopup(true)}
+        onClick={() => onPopupChange(true)}
       >
         {/* Animated gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-primary/10 pointer-events-none group-hover:from-primary/20 group-hover:to-primary/20 transition-all duration-500" />
@@ -47,7 +49,7 @@ export function PremiumBanner() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowPopup(false)}
+            onClick={() => onPopupChange(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -58,7 +60,7 @@ export function PremiumBanner() {
               onClick={(e) => e.stopPropagation()}
             >
               <button
-                onClick={() => setShowPopup(false)}
+                onClick={() => onPopupChange(false)}
                 className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="w-5 h-5" />

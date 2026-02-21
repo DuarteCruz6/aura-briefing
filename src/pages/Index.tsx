@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Crown } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { TodaysBriefing } from "@/components/TodaysBriefing";
@@ -11,15 +11,14 @@ import { PremiumBanner } from "@/components/PremiumBanner";
 const Index = () => {
   const { user } = useAuth();
   const [chatOpen, setChatOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
 
   if (!user) return null;
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
-      {/* Left sidebar */}
       <AppSidebar />
 
-      {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto scrollbar-thin pb-4">
           <div className="max-w-3xl mx-auto px-6 py-8">
@@ -29,13 +28,22 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Wednesday, Feb 21</p>
                 <h2 className="font-display text-xl font-semibold text-foreground">Good morning</h2>
               </div>
-              <button
-                onClick={() => setChatOpen(!chatOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/80 transition-colors"
-              >
-                <MessageSquare className="w-4 h-4" />
-                Ask AI
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPremiumOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
+                >
+                  <Crown className="w-4 h-4" />
+                  Premium
+                </button>
+                <button
+                  onClick={() => setChatOpen(!chatOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/80 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Ask AI
+                </button>
+              </div>
             </div>
 
             <TodaysBriefing />
@@ -49,7 +57,7 @@ const Index = () => {
               ))}
             </div>
 
-            <PremiumBanner />
+            <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} />
           </div>
         </div>
         <AudioPlayer />
