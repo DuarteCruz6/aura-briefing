@@ -1,4 +1,4 @@
-import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Clapperboard } from "lucide-react";
+import { Play, Pause, Clock, TrendingUp, Globe, Cpu, Bookmark, ChevronDown, Clapperboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
@@ -164,46 +164,3 @@ export function BriefingCard({ title, description, duration, topics, confidence,
     </motion.div>
   );
 }
-
-export const briefings = [
-  {
-    title: "Daily Briefing",
-    description: "Your personalized morning update",
-    duration: "7 min",
-    topics: ["Markets", "AI", "Climate", "Politics"],
-    confidence: 94,
-    summary: "Markets opened higher as tech stocks rallied on strong earnings. AI regulation talks continue in Brussels with new proposals expected this week. Climate summit delegates reached a preliminary agreement on carbon credits. Key political developments include upcoming policy votes on infrastructure spending.",
-    icon: <TrendingUp className="w-5 h-5" />,
-    audioUrl: "/audio/podcast.wav",
-  },
-  {
-    title: "Tech Briefing",
-    description: "Latest in technology & startups",
-    duration: "5 min",
-    topics: ["AI Models", "Funding", "Product Launches"],
-    confidence: 97,
-    summary: "New frontier AI models announced with improved reasoning capabilities. Several startups secured Series B funding rounds totaling $2.3B. Major product launches this week include updates to developer tools and a new consumer AI assistant.",
-    icon: <Cpu className="w-5 h-5" />,
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-  },
-  {
-    title: "World Briefing",
-    description: "Global affairs & geopolitics",
-    duration: "8 min",
-    topics: ["Diplomacy", "Conflicts", "Trade", "Elections"],
-    confidence: 91,
-    summary: "Diplomatic talks between key nations show progress on trade agreements. Ongoing conflicts see shifts in humanitarian corridors. New trade tariffs proposed by multiple blocs. Upcoming elections in three countries could reshape regional alliances.",
-    icon: <Globe className="w-5 h-5" />,
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-  },
-  {
-    title: "Ireland Briefing",
-    description: "Local news & developments",
-    duration: "4 min",
-    topics: ["Economy", "Housing", "Tech Hub", "Sports"],
-    confidence: 89,
-    summary: "Irish economy shows resilient growth figures despite global headwinds. New housing development plans announced for Dublin and Cork. Tech hub expansion continues with major employers adding roles. Weekend sports roundup covers GAA and rugby highlights.",
-    icon: <MapPin className="w-5 h-5" />,
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  },
-];
