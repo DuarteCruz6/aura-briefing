@@ -18,11 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import engine, get_db, init_db
 from app.models.database import (
+    Bookmark,
     ExtractedSummary,
     FetchFrequency,
     Source,
     SourceType,
     User,
+    UserSetting,
     UserTopicPreference,
 )
 
@@ -50,6 +52,13 @@ class PodcastFromUrlsRequest(BaseModel):
     model_id: str | None = None
 
 
+class VideoGenerateRequest(BaseModel):
+    """Generate a video briefing: TTS from summary + simple visual (gradient + title). Premium only."""
+    title: str
+    summary: str
+    topics: list[str] | None = None
+
+
 class SourceCreateRequest(BaseModel):
     type: str  # "youtube", "x", "linkedin", "news", "podcast"
     url: str
@@ -74,6 +83,27 @@ class UserCreateRequest(BaseModel):
     email: str
     name: str | None = None
     avatar_url: str | None = None
+
+
+class AuthMeRequest(BaseModel):
+    """Identify or create user by email (used by frontend auth)."""
+    email: str
+    name: str | None = None
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Update user settings (e.g. briefing_frequency)."""
+    briefing_frequency: str | None = None
+
+
+class BookmarkCreateRequest(BaseModel):
+    """Create a bookmark (saved briefing card)."""
+    title: str
+    description: str | None = None
+    duration: str | None = None
+    topics: list[str] | None = None
+    summary: str | None = None
+    audio_url: str | None = None
 
 
 @asynccontextmanager
@@ -103,15 +133,28 @@ def root():
 def health():
     return {"status": "ok"}
 
-# CORS so frontend (e.g. Vite on port 8080) can call the API
-origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+# CORS: set CORS_ORIGINS to your frontend URL(s), or "*" to allow any origin (e.g. for demos).
+_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+_allow_any_origin = _origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[] if _allow_any_origin else _origins,
+    allow_origin_regex=".*" if _allow_any_origin else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_current_user_id(request: Request, db: Session = Depends(get_db)) -> int:
+    """Resolve user from X-User-Email header; default to user_id=1 if missing (backward compat)."""
+    email = (request.headers.get("X-User-Email") or "").strip()
+    if not email:
+        return 1
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        return user.id
+    return 1
 
 
 @app.exception_handler(Exception)
@@ -419,10 +462,190 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     }
 
 
+## ─── Auth (get-or-create by email) ─────────────────────────────────────────
+
+@app.options("/auth/me")
+def auth_me_options(request: Request):
+    """CORS preflight for POST /auth/me."""
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        status_code=200,
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, X-User-Email",
+            "Access-Control-Max-Age": "600",
+        },
+    )
+
+
+@app.post("/auth/me")
+def auth_me(body: AuthMeRequest, db: Session = Depends(get_db)):
+    """Get or create user by email. Frontend calls this after login/signup; use X-User-Email header on subsequent requests."""
+    email = (body.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    name = (body.name or "").strip() or None
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        if name is not None and user.name != name:
+            user.name = name
+            db.commit()
+            db.refresh(user)
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+        }
+    # Create with email as google_id so we have a unique key
+    user = User(google_id=email, email=email, name=name)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+## ─── User settings ─────────────────────────────────────────────────────────
+
+@app.get("/users/me/settings")
+def get_my_settings(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Get current user settings (e.g. briefing_frequency)."""
+    rows = db.query(UserSetting).filter(UserSetting.user_id == user_id).all()
+    out = {"briefing_frequency": "daily"}
+    for r in rows:
+        out[r.key] = r.value
+    return out
+
+
+@app.patch("/users/me/settings")
+def update_my_settings(
+    body: SettingsUpdateRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Update current user settings."""
+    if body.briefing_frequency is not None:
+        val = body.briefing_frequency.strip() or "daily"
+        existing = (
+            db.query(UserSetting)
+            .filter(UserSetting.user_id == user_id, UserSetting.key == "briefing_frequency")
+            .first()
+        )
+        if existing:
+            existing.value = val
+        else:
+            db.add(UserSetting(user_id=user_id, key="briefing_frequency", value=val))
+        db.commit()
+    rows = db.query(UserSetting).filter(UserSetting.user_id == user_id).all()
+    out = {"briefing_frequency": "daily"}
+    for r in rows:
+        out[r.key] = r.value
+    return out
+
+
+## ─── Bookmarks ────────────────────────────────────────────────────────────
+
+@app.get("/bookmarks")
+def list_bookmarks(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """List current user's bookmarks (saved briefings)."""
+    rows = (
+        db.query(Bookmark)
+        .filter(Bookmark.user_id == user_id)
+        .order_by(Bookmark.created_at.desc())
+        .all()
+    )
+    out = []
+    for r in rows:
+        topics = []
+        if r.topics:
+            try:
+                topics = json.loads(r.topics)
+            except Exception:
+                pass
+        out.append({
+            "id": r.id,
+            "title": r.title,
+            "description": r.description,
+            "duration": r.duration,
+            "topics": topics,
+            "summary": r.summary,
+            "audio_url": r.audio_url,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+    return out
+
+
+@app.post("/bookmarks", status_code=201)
+def create_bookmark(
+    body: BookmarkCreateRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Create a bookmark (save a briefing card)."""
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    topics_json = json.dumps(body.topics or []) if body.topics is not None else None
+    b = Bookmark(
+        user_id=user_id,
+        title=title,
+        description=body.description,
+        duration=body.duration,
+        topics=topics_json,
+        summary=body.summary,
+        audio_url=body.audio_url,
+    )
+    db.add(b)
+    db.commit()
+    db.refresh(b)
+    topics = body.topics or []
+    return {
+        "id": b.id,
+        "title": b.title,
+        "description": b.description,
+        "duration": b.duration,
+        "topics": topics,
+        "summary": b.summary,
+        "audio_url": b.audio_url,
+        "created_at": b.created_at.isoformat() if b.created_at else None,
+    }
+
+
+@app.delete("/bookmarks/{bookmark_id}")
+def delete_bookmark(
+    bookmark_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Remove a bookmark."""
+    b = db.query(Bookmark).filter(Bookmark.id == bookmark_id, Bookmark.user_id == user_id).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    db.delete(b)
+    db.commit()
+    return {"deleted": True}
+
+
 ## ─── Source CRUD ───────────────────────────────────────────────────────────
 
 @app.get("/sources")
-def list_sources(user_id: int = 1, db: Session = Depends(get_db)):
+def list_sources(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """List all sources for a user (default user_id=1 until auth is wired)."""
     rows = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
     return [
@@ -439,7 +662,11 @@ def list_sources(user_id: int = 1, db: Session = Depends(get_db)):
 
 
 @app.post("/sources", status_code=201)
-def create_source(body: SourceCreateRequest, user_id: int = 1, db: Session = Depends(get_db)):
+def create_source(
+    body: SourceCreateRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """Add a new source (YouTube channel, X profile, LinkedIn page, etc.)."""
     try:
         source_type = SourceType(body.type)
@@ -470,7 +697,11 @@ def create_source(body: SourceCreateRequest, user_id: int = 1, db: Session = Dep
 
 
 @app.delete("/sources/{source_id}")
-def delete_source(source_id: int, user_id: int = 1, db: Session = Depends(get_db)):
+def delete_source(
+    source_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """Remove a source."""
     source = db.query(Source).filter(Source.id == source_id, Source.user_id == user_id).first()
     if not source:
@@ -481,7 +712,10 @@ def delete_source(source_id: int, user_id: int = 1, db: Session = Depends(get_db
 
 
 @app.get("/sources/latest")
-def get_sources_latest(user_id: int = 1, db: Session = Depends(get_db)):
+def get_sources_latest(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """
     For each source the user follows, fetch the latest post / video / article URL.
     YouTube: latest video from channel. News/Podcast: latest item from RSS feed.
@@ -501,6 +735,42 @@ def get_sources_latest(user_id: int = 1, db: Session = Depends(get_db)):
     return {"sources": results}
 
 
+@app.get("/briefings")
+def get_briefings(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Latest content from user's followed sources (same data as /sources/latest).
+    Frontend can show these as briefing cards; when no sources, returns empty list.
+    """
+    from app.services.latest_from_sources import fetch_latest_for_sources
+
+    sources = (
+        db.query(Source)
+        .filter(Source.user_id == user_id)
+        .order_by(Source.created_at.desc())
+        .all()
+    )
+    if not sources:
+        return {"briefings": []}
+    results = fetch_latest_for_sources(sources)
+    # Shape for frontend: list of { title, url, source_type, source_url, published_at?, error? }
+    briefings = []
+    for r in results:
+        latest = r.get("latest") or {}
+        briefings.append({
+            "id": r.get("source_id"),
+            "title": latest.get("title") or "Latest update",
+            "url": latest.get("url") or r.get("source_url"),
+            "source_type": r.get("source_type"),
+            "source_url": r.get("source_url"),
+            "published_at": latest.get("published_at"),
+            "error": r.get("error"),
+        })
+    return {"briefings": briefings}
+
+
 # Platform name from API -> SourceType
 _PREFERENCE_PLATFORM_MAP = {
     "youtube": SourceType.YOUTUBE,
@@ -513,7 +783,7 @@ _PREFERENCE_PLATFORM_MAP = {
 @app.post("/preferences/sources", status_code=201)
 def add_preference_source(
     body: PreferenceSourceRequest,
-    user_id: int = 1,
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -555,7 +825,10 @@ def add_preference_source(
 
 
 @app.get("/preferences/sources")
-def list_preference_sources(user_id: int = 1, db: Session = Depends(get_db)):
+def list_preference_sources(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """List all saved preference sources for the user (same as /sources but keyed as preferences)."""
     rows = (
         db.query(Source)
@@ -579,7 +852,7 @@ def list_preference_sources(user_id: int = 1, db: Session = Depends(get_db)):
 @app.post("/preferences/topics", status_code=201)
 def add_preference_topic(
     body: PreferenceTopicRequest,
-    user_id: int = 1,
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -610,7 +883,10 @@ def add_preference_topic(
 
 
 @app.get("/preferences/topics")
-def list_preference_topics(user_id: int = 1, db: Session = Depends(get_db)):
+def list_preference_topics(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """List all topic preferences for the user."""
     rows = (
         db.query(UserTopicPreference)
@@ -631,7 +907,7 @@ def list_preference_topics(user_id: int = 1, db: Session = Depends(get_db)):
 @app.delete("/preferences/topics/{topic_id}")
 def delete_preference_topic(
     topic_id: int,
-    user_id: int = 1,
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """Remove a topic from the user's preferences."""
@@ -714,6 +990,61 @@ async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session =
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
+VIDEO_OUTPUT_DIR = Path("/tmp/video_briefings")
+
+# Header expected for premium-only video generation
+PREMIUM_HEADER = "x-premium"
+
+
+@app.post("/video/generate")
+async def generate_video(
+    body: VideoGenerateRequest,
+    request: Request,
+):
+    """
+    Generate a video briefing: TTS from summary + gradient frame with title.
+    Premium only (requires header X-Premium: true). Returns MP4.
+    """
+    if request.headers.get(PREMIUM_HEADER, "").strip().lower() != "true":
+        raise HTTPException(
+            status_code=403,
+            detail="Premium subscription required to generate video briefings",
+        )
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; video generation unavailable",
+        )
+
+    title = (body.title or "").strip()
+    summary = (body.summary or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    if not summary:
+        raise HTTPException(status_code=400, detail="summary is required")
+
+    VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = VIDEO_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp4"
+
+    try:
+        from app.models.video_generation import build_briefing_video
+
+        path_str = await asyncio.to_thread(
+            build_briefing_video,
+            title,
+            summary,
+            output_path,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return FileResponse(
+        path_str,
+        media_type="video/mp4",
+        filename="briefing.mp4",
+    )
 
 
 @app.post("/podcast/generate")

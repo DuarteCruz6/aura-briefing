@@ -12,6 +12,8 @@ from app.models.database.summary import Summary
 from app.models.database.audio import Audio
 from app.models.database.extracted_summary import ExtractedSummary
 from app.models.database.user_topic_preference import UserTopicPreference
+from app.models.database.user_setting import UserSetting
+from app.models.database.bookmark import Bookmark
 
 __all__ = [
     "Base",
@@ -27,4 +29,6 @@ __all__ = [
     "Audio",
     "ExtractedSummary",
     "UserTopicPreference",
+    "UserSetting",
+    "Bookmark",
 ]

@@ -1,14 +1,15 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { MessageSquare, Crown } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { TodaysBriefing } from "../components/TodaysBriefing";
-import { BriefingCard, briefings } from "../components/BriefingCard";
+import { BriefingCard, briefings as staticBriefings } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
 import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
+import { api, type BriefingEntry } from "../lib/api";
 
 const Index = () => {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ const Index = () => {
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [videoTitle, setVideoTitle] = useState<string | null>(null);
+  const [videoBriefing, setVideoBriefing] = useState<{ title: string; summary: string } | null>(null);
   const [isPremium, setIsPremium] = useState(() => {
     const trial = localStorage.getItem("briefcast_trial");
     if (trial !== "active") return false;
@@ -30,6 +31,17 @@ const Index = () => {
     return true;
   });
   const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
+  const [apiBriefings, setApiBriefings] = useState<BriefingEntry[]>([]);
+  const [briefingsLoading, setBriefingsLoading] = useState(true);
+
+  // Load briefings from API (latest from user's sources)
+  useEffect(() => {
+    api
+      .getBriefings()
+      .then((r) => setApiBriefings(r.briefings || []))
+      .catch(() => setApiBriefings([]))
+      .finally(() => setBriefingsLoading(false));
+  }, []);
 
   // Re-check premium + frequency when popup closes or page focuses
   useEffect(() => {
@@ -41,7 +53,6 @@ const Index = () => {
   useEffect(() => {
     const checkFrequency = () => setFrequency(localStorage.getItem("briefcast_frequency") || "daily");
     window.addEventListener("focus", checkFrequency);
-    // Also poll for changes from settings page
     const interval = setInterval(checkFrequency, 1000);
     return () => {
       window.removeEventListener("focus", checkFrequency);
@@ -49,12 +60,34 @@ const Index = () => {
     };
   }, []);
 
-  // Filter briefings based on frequency
-  const filteredBriefings = frequency === "daily"
-    ? briefings
-    : frequency === "weekly"
-    ? briefings.filter((_, i) => i < 3)
-    : briefings.filter((_, i) => i < 2);
+  // Map API briefings to card shape, or use static list when no sources
+  const sourceIconMap: Record<string, React.ReactNode> = {
+    youtube: <TrendingUp className="w-5 h-5" />,
+    x: <Cpu className="w-5 h-5" />,
+    linkedin: <Globe className="w-5 h-5" />,
+    news: <Globe className="w-5 h-5" />,
+    podcast: <Cpu className="w-5 h-5" />,
+  };
+  const staticFiltered =
+    frequency === "daily"
+      ? staticBriefings
+      : frequency === "weekly"
+      ? staticBriefings.filter((_, i) => i < 3)
+      : staticBriefings.filter((_, i) => i < 2);
+  const briefingCards =
+    apiBriefings.length > 0
+      ? apiBriefings.map((b) => ({
+          title: b.title,
+          description: b.error ? "Could not fetch latest." : "Latest from your source",
+          duration: "—",
+          topics: [b.source_type],
+          confidence: b.error ? 50 : 85,
+          summary: b.error ? b.error : "Latest update from your followed source.",
+          icon: sourceIconMap[b.source_type] ?? <Globe className="w-5 h-5" />,
+          audioUrl: "",
+        }))
+      : staticFiltered;
+  const filteredBriefings = briefingCards;
 
   const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
 
@@ -132,19 +165,23 @@ const Index = () => {
               <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 Your {freqLabel} Briefings
               </h3>
-              {filteredBriefings.map((b, i) => (
-                <BriefingCard
-                  key={b.title}
-                  {...b}
-                  index={i}
-                  isPremium={isPremium}
-                  isCurrentlyPlaying={isPlaying && currentTrack?.title === b.title}
-                  onPlay={handlePlay}
-                  onPause={handlePause}
-                  onPremiumClick={() => setPremiumOpen(true)}
-                  onVideoClick={(t) => setVideoTitle(t)}
-                />
-              ))}
+              {briefingsLoading ? (
+                <p className="text-sm text-muted-foreground py-4">Loading briefings…</p>
+              ) : (
+                filteredBriefings.map((b, i) => (
+                  <BriefingCard
+                    key={b.title}
+                    {...b}
+                    index={i}
+                    isPremium={isPremium}
+                    isCurrentlyPlaying={isPlaying && currentTrack?.title === b.title}
+                    onPlay={handlePlay}
+                    onPause={handlePause}
+                    onPremiumClick={() => setPremiumOpen(true)}
+                    onVideoClick={(br) => setVideoBriefing(br ? { title: br.title, summary: br.summary ?? "" } : null)}
+                  />
+                ))
+              )}
             </div>
 
             <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} onTrialActivated={() => setIsPremium(true)} />
@@ -163,7 +200,13 @@ const Index = () => {
       </main>
 
       <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
-      <VideoPlayerPopup open={!!videoTitle} onClose={() => setVideoTitle(null)} title={videoTitle || ""} />
+      <VideoPlayerPopup
+        open={!!videoBriefing}
+        onClose={() => setVideoBriefing(null)}
+        title={videoBriefing?.title ?? ""}
+        summary={videoBriefing?.summary ?? ""}
+        isPremium={isPremium}
+      />
     </div>
   );
 };

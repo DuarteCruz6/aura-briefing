@@ -1,17 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, ExternalLink, Youtube, Linkedin, Twitter, Heart } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Youtube, Linkedin, Twitter, Heart, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useFavourites } from "../hooks/useFavourites";
-
-interface LocalSource {
-  id: string;
-  type: string;
-  url: string;
-  addedAt: string;
-}
-
-const STORAGE_KEY = "briefcast_sources";
+import { api, type SourceEntry } from "../lib/api";
 
 const platforms = [
   {
@@ -40,29 +32,33 @@ const platforms = [
   },
 ] as const;
 
-function loadSources(): LocalSource[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveSources(sources: LocalSource[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
-}
-
 export const SourcesSection = () => {
   const [activePlatform, setActivePlatform] = useState<string>("youtube");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [sources, setSources] = useState<LocalSource[]>(loadSources);
+  const [sources, setSources] = useState<SourceEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const { addFavourite, removeFavourite, isFavourite } = useFavourites();
 
-  useEffect(() => {
-    saveSources(sources);
-  }, [sources]);
+  const loadSources = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await api.getSources();
+      setSources(list);
+    } catch {
+      toast.error("Could not load sources. Check your connection.");
+      setSources([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const handleAdd = () => {
+  useEffect(() => {
+    loadSources();
+  }, [loadSources]);
+
+  const handleAdd = async () => {
     const trimmed = sourceUrl.trim().replace(/^\/+/, "");
     if (!trimmed) return;
     const fullUrl = platformMeta.baseUrl + trimmed;
@@ -70,21 +66,43 @@ export const SourcesSection = () => {
       toast.error("You're already following this source");
       return;
     }
-    setSources((prev) => [
-      { id: crypto.randomUUID(), type: activePlatform, url: fullUrl, addedAt: new Date().toISOString() },
-      ...prev,
-    ]);
-    setSourceUrl("");
-    toast.success("Source added!");
+    setAdding(true);
+    try {
+      const created = await api.addSource({
+        type: activePlatform,
+        url: fullUrl,
+        frequency: "daily",
+      });
+      setSources((prev) => [created, ...prev]);
+      setSourceUrl("");
+      toast.success("Source added!");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to add source";
+      if (msg.includes("already following")) {
+        toast.error("You're already following this source");
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setAdding(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setSources((prev) => prev.filter((s) => s.id !== id));
-    toast.success("Source removed");
+  const handleDelete = async (source: SourceEntry) => {
+    setDeletingId(source.id);
+    try {
+      await api.deleteSource(source.id);
+      setSources((prev) => prev.filter((s) => s.id !== source.id));
+      toast.success("Source removed");
+    } catch {
+      toast.error("Failed to remove source");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
-  const toggleFavSource = (source: LocalSource) => {
-    const favId = source.id;
+  const toggleFavSource = (source: SourceEntry) => {
+    const favId = String(source.id);
     if (isFavourite(favId, "source")) {
       removeFavourite(favId, "source");
       toast.success("Removed from favourites");
@@ -155,15 +173,21 @@ export const SourcesSection = () => {
         </div>
         <button
           onClick={handleAdd}
-          disabled={!sourceUrl.trim()}
+          disabled={!sourceUrl.trim() || adding}
           className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
-          <Plus className="w-4 h-4" /> Follow
+          {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          Follow
         </button>
       </div>
 
       {/* Source list */}
-      {filteredSources.length === 0 ? (
+      {loading ? (
+        <div className="glass-panel rounded-xl border border-border/20 p-8 text-center">
+          <Loader2 className="w-8 h-8 mx-auto mb-3 text-muted-foreground animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading sources…</p>
+        </div>
+      ) : filteredSources.length === 0 ? (
         <div className="glass-panel rounded-xl border border-border/20 p-8 text-center">
           <platformMeta.icon className={`w-8 h-8 mx-auto mb-3 ${platformMeta.color} opacity-40`} />
           <p className="text-sm text-muted-foreground">
@@ -175,7 +199,9 @@ export const SourcesSection = () => {
           <AnimatePresence>
             {filteredSources.map((source) => {
               const Icon = platformMeta.icon;
-              const faved = isFavourite(source.id, "source");
+              const favId = String(source.id);
+              const faved = isFavourite(favId, "source");
+              const isDeleting = deletingId === source.id;
               return (
                 <motion.div
                   key={source.id}
@@ -204,10 +230,15 @@ export const SourcesSection = () => {
                     <ExternalLink className="w-4 h-4" />
                   </a>
                   <button
-                    onClick={() => handleDelete(source.id)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={() => handleDelete(source)}
+                    disabled={isDeleting}
+                    className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </button>
                 </motion.div>
               );

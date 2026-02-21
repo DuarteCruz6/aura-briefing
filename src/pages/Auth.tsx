@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 import logo from "../assets/logo.png";
+import { api } from "../lib/api";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,12 +12,27 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("briefcast_auth", JSON.stringify({ email, name: name || email.split("@")[0] }));
-    navigate("/");
+    setLoading(true);
+    try {
+      const user = await api.getAuthMe({
+        email: email.trim(),
+        name: (name || email.split("@")[0]).trim() || undefined,
+      });
+      localStorage.setItem(
+        "briefcast_auth",
+        JSON.stringify({ id: user.id, email: user.email, name: user.name ?? undefined })
+      );
+      navigate("/");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sign in failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -132,9 +149,10 @@ const Auth = () => {
 
               <button
                 type="submit"
-                className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors mt-2"
+                disabled={loading}
+                className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors mt-2 disabled:opacity-50"
               >
-                {isLogin ? "Log In" : "Create Account"}
+                {loading ? "Signing in…" : isLogin ? "Log In" : "Create Account"}
               </button>
             </motion.form>
           </AnimatePresence>
