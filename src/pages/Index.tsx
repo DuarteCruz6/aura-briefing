@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { MessageSquare, Crown } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
@@ -7,19 +7,28 @@ import { BriefingCard, briefings } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { PremiumBanner } from "../components/PremiumBanner";
+import { BackgroundEffects } from "../components/BackgroundEffects";
 
 const Index = () => {
   const { user } = useAuth();
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
+  const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
+
+  const isPremium = localStorage.getItem("briefcast_trial") === "active";
+
+  const handlePlay = useCallback((audioUrl: string, title: string) => {
+    setCurrentTrack({ src: audioUrl, title });
+  }, []);
 
   if (!user) return null;
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden">
+    <div className="flex h-screen w-full bg-background overflow-hidden relative">
+      <BackgroundEffects />
       <AppSidebar />
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden relative z-10">
         <div className="flex-1 overflow-y-auto scrollbar-thin pb-4">
           <div className="max-w-3xl mx-auto px-6 py-8">
             {/* Top bar */}
@@ -53,14 +62,23 @@ const Index = () => {
                 Your Briefings
               </h3>
               {briefings.map((b, i) => (
-                <BriefingCard key={b.title} {...b} index={i} />
+                <BriefingCard
+                  key={b.title}
+                  {...b}
+                  index={i}
+                  isPremium={isPremium}
+                  onPlay={handlePlay}
+                />
               ))}
             </div>
 
             <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} />
           </div>
         </div>
-        <AudioPlayer />
+        <AudioPlayer
+          src={currentTrack?.src}
+          trackTitle={currentTrack?.title}
+        />
       </main>
 
       <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
