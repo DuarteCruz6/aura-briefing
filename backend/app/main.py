@@ -212,16 +212,10 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
     if row:
         return _parse_summary_json(row.summary_json)
     
-    if not os.getenv("ELEVENLABS_API_KEY_TTS"):
+    if not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(
             status_code=503,
-            detail="ELEVENLABS_API_KEY_TTS not set; transcription unavailable",
-        )
-
-    if not os.getenv("ELEVENLABS_API_KEY_STT"):
-        raise HTTPException(
-            status_code=503,
-            detail="ELEVENLABS_API_KEY_STT not set; transcription unavailable",
+            detail="GEMINI_API_KEY not set; transcription unavailable",
         )
     from app.models.transcription import youtube_url_to_text
 
@@ -278,14 +272,13 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
     url = (body.url or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
-    from app.services import get_or_extract_summary
+    from app.services import get_or_extract_summary, _is_youtube_url
 
-    if _is_youtube_url(url) and not os.getenv("ELEVENLABS_API_KEY_STT"):
+    if _is_youtube_url(url) and not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(
             status_code=503,
-            detail="ELEVENLABS_API_KEY_STT not set; YouTube transcription unavailable",
+            detail="GEMINI_API_KEY not set; YouTube transcription unavailable",
         )
-    result = await asyncio.to_thread(get_or_extract_summary, url, db)
     try:
         result = await asyncio.to_thread(get_or_extract_summary, url, db)
     except ValueError as e:
