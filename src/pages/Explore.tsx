@@ -195,7 +195,19 @@ const Explore = () => {
                 type="text"
                 value={topicSearch}
                 onChange={(e) => setTopicSearch(e.target.value)}
-                placeholder="Search topics..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && topicSearch.trim()) {
+                    const id = topicSearch.trim().toLowerCase().replace(/\s+/g, "-");
+                    if (!isFavourite(id, "topic")) {
+                      addFavourite({ id, type: "topic", label: topicSearch.trim(), emoji: "📌" });
+                      toast.success(`Added "${topicSearch.trim()}" to favourites`);
+                    } else {
+                      toast.error("Already in favourites");
+                    }
+                    setTopicSearch("");
+                  }
+                }}
+                placeholder="Search or add a topic..."
                 className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
               />
             </div>
@@ -236,7 +248,19 @@ const Explore = () => {
                 type="text"
                 value={regionSearch}
                 onChange={(e) => setRegionSearch(e.target.value)}
-                placeholder="Search regions..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && regionSearch.trim()) {
+                    const id = regionSearch.trim().toLowerCase().replace(/\s+/g, "-");
+                    if (!isFavourite(id, "region")) {
+                      addFavourite({ id, type: "region", label: regionSearch.trim(), emoji: "📍" });
+                      toast.success(`Added "${regionSearch.trim()}" to favourites`);
+                    } else {
+                      toast.error("Already in favourites");
+                    }
+                    setRegionSearch("");
+                  }
+                }}
+                placeholder="Search or add a region..."
                 className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
               />
             </div>
