@@ -1,7 +1,7 @@
 import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Video } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { useBookmarks } from "@/hooks/useBookmarks";
+import { useBookmarks } from "../hooks/useBookmarks";
 import { VideoPlayerPopup } from "./VideoPlayerPopup";
 
 interface BriefingCardProps {

@@ -1,12 +1,12 @@
-import { useState } from "react"; 
+import { useState } from "react";
 import { MessageSquare, Crown } from "lucide-react";
-import { AppSidebar } from "@/components/AppSidebar";
-import { useAuth } from "@/hooks/useAuth";
-import { TodaysBriefing } from "@/components/TodaysBriefing";
-import { BriefingCard, briefings } from "@/components/BriefingCard";
-import { AudioPlayer } from "@/components/AudioPlayer";
-import { ChatSidebar } from "@/components/ChatSidebar";
-import { PremiumBanner } from "@/components/PremiumBanner";
+import { AppSidebar } from "../components/AppSidebar";
+import { useAuth } from "../hooks/useAuth";
+import { TodaysBriefing } from "../components/TodaysBriefing";
+import { BriefingCard, briefings } from "../components/BriefingCard";
+import { AudioPlayer } from "../components/AudioPlayer";
+import { ChatSidebar } from "../components/ChatSidebar";
+import { PremiumBanner } from "../components/PremiumBanner";
 
 const Index = () => {
   const { user } = useAuth();

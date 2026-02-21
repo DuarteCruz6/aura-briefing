@@ -1,8 +1,8 @@
-import { useState } from "react"; 
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "../assets/logo.png";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);

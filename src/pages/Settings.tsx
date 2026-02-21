@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react"; 
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { AppSidebar } from "@/components/AppSidebar";
-import { useAuth } from "@/hooks/useAuth";
-import { api } from "@/lib/api";
+import { AppSidebar } from "../components/AppSidebar";
+import { useAuth } from "../hooks/useAuth";
+import { api } from "../lib/api";
 import { ArrowLeft, Check, Loader2, Wifi, WifiOff } from "lucide-react";
 
 const briefingLengths = [

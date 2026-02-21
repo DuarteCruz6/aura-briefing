@@ -1,7 +1,7 @@
 import { Crown, Video, Sparkles, Check, X, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "../hooks/use-toast";
 
 interface PremiumBannerProps {
   showPopup: boolean;
