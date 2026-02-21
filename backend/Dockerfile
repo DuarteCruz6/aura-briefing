@@ -3,8 +3,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# FFmpeg for yt-dlp (YouTube audio)
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# FFmpeg for yt-dlp; libpq for PostgreSQL (psycopg2)
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
