@@ -68,10 +68,16 @@ def _strip_html_to_text(html: str) -> str:
     return text
 
 
-def _extract_with_gemini(raw_text: str, url: str, *, api_key: str, model: str = "gemini-1.5-flash") -> dict | None:
+def _extract_with_gemini(raw_text: str, url: str, *, api_key: str, model: str | None = None) -> dict | None:
     """Use Gemini to extract title and main text from raw page text."""
-    import google.generativeai as genai
+    import google.generativeai as genai  # type: ignore[import-untyped]
     genai.configure(api_key=api_key)
+    if model is None:
+        try:
+            from app.config import settings
+            model = getattr(settings, "gemini_model", "gemini-2.5-flash")
+        except Exception:
+            model = "gemini-2.5-flash"
     prompt = """You are given raw text extracted from a web page (could be a news article, a post from X/Twitter, LinkedIn, or similar).
 Extract ONLY the main content: the post body, article body, or primary text. No navigation, ads, cookie notices, or menus.
 Also extract a short title (e.g. headline or first line of the post).
@@ -109,7 +115,7 @@ def extract_text_content(
     url: str,
     *,
     api_key: str | None = None,
-    model: str = "gemini-1.5-flash",
+    model: str | None = None,
 ) -> dict | None:
     """
     Fetch a text-based URL (X, LinkedIn, news, etc.) and extract main content using Gemini.
@@ -117,7 +123,7 @@ def extract_text_content(
     Args:
         url: Full URL of the page (e.g. X post, LinkedIn post, article).
         api_key: Gemini API key. If None, uses app config or GEMINI_API_KEY env.
-        model: Gemini model (default gemini-1.5-flash).
+        model: Gemini model. If None, uses app config GEMINI_MODEL or gemini-2.5-flash.
 
     Returns:
         Dict with "title", "text", and "url". None if fetch or extraction failed.

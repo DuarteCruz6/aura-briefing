@@ -1,24 +1,22 @@
 """
 Summary generation using Google Gemini API.
 """
-import google.generativeai as genai
+import google.generativeai as genai  # type: ignore[import-untyped]
 
 from app.config import settings
 
-# Default model for digest summaries (good balance of quality and speed)
-DEFAULT_MODEL = "gemini-1.5-flash"
-
-
-def generate_digest_summary(item_contents: list[str], *, model: str = DEFAULT_MODEL) -> str:
+def generate_digest_summary(item_contents: list[str], *, model: str | None = None) -> str:
     """
     Generate a single digest summary from a list of item contents (e.g. titles + snippets).
 
     :param item_contents: List of strings, each typically one item's title + content/snippet.
-    :param model: Gemini model id (default gemini-1.5-flash).
+    :param model: Gemini model id. If None, uses settings.gemini_model (default gemini-2.5-flash).
     :return: Summary text suitable for TTS (podcast script).
     """
     if not settings.gemini_api_key:
         raise ValueError("GEMINI_API_KEY is not set")
+    if model is None:
+        model = getattr(settings, "gemini_model", "gemini-2.5-flash")
 
     genai.configure(api_key=settings.gemini_api_key)
     combined = "\n\n---\n\n".join(item_contents)

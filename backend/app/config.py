@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # LLM (Gemini)
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"  # Override via GEMINI_MODEL if your API expects a different name
 
     # ElevenLabs (transcription)
     elevenlabs_api_key: str = ""

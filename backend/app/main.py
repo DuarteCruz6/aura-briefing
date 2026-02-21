@@ -1,10 +1,11 @@
 import asyncio
 import json
 import os
+import traceback
 from pathlib import Path
 
 from contextlib import asynccontextmanager
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -50,6 +51,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Return 500 with error details so we can debug (always include detail in body)."""
+    tb = traceback.format_exc()
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": str(exc),
+            "type": type(exc).__name__,
+            "traceback": tb if settings.environment == "development" else None,
+        },
+    )
 
 
 def _get_table_names():
@@ -117,7 +132,7 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
     # Same table as text extractor: return if already computed
     row = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
     if row:
-        return json.loads(row.summary_json)
+        return _parse_summary_json(row.summary_json)
 
     if not os.getenv("ELEVENLABS_API_KEY"):
         raise HTTPException(
@@ -143,40 +158,34 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
     return result
 
 
-# Serve frontend static files when running in Docker (static dir present)
-if STATIC_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
-
-    @app.get("/{full_path:path}")
-    def serve_spa(full_path: str, request: Request):
-        """Serve index.html for non-API GET requests (SPA fallback)."""
-        if request.method != "GET":
-            raise HTTPException(status_code=404, detail="Not found")
-        # If it looks like a static file, try to serve it (e.g. favicon, source maps)
-        path = STATIC_DIR / full_path
-        if path.is_file():
-            return FileResponse(path)
-        return FileResponse(STATIC_DIR / "index.html")
+def _parse_summary_json(raw: str):
+    """Parse stored summary JSON; raise HTTPException if invalid."""
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stored summary is invalid JSON: {e!s}",
+        ) from e
 
 
 @app.get("/summaries/by-url")
 def get_summary_by_url(url: str, db: Session = Depends(get_db)):
     """
-    Get stored summary JSON for a given source URL (YouTube, podcast, article, etc.).
-    Returns 404 if no summary exists for that URL.
+    Get stored summary for a given source URL. Returns only the summary object (no wrapper).
+    404 if no summary exists.
     """
     row = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
     if not row:
         raise HTTPException(status_code=404, detail="No summary found for this URL")
-    return {"source_url": row.source_url, "summary": json.loads(row.summary_json)}
+    return _parse_summary_json(row.summary_json)
 
 
 @app.post("/summaries/get-or-extract")
 async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Depends(get_db)):
     """
-    Get summary for a URL: if already in the DB return it; otherwise extract (YouTube
-    via existing transcription, other URLs via placeholder), save, and return.
-    YouTube requires ELEVENLABS_API_KEY. Returns 502 if extraction fails.
+    Get summary for a URL: if in DB return it; else extract (YouTube or text), save, return.
+    Returns only the summary object (no wrapper).
     """
     url = (body.url or "").strip()
     if not url:
@@ -194,4 +203,20 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
             status_code=502,
             detail="Extraction failed or URL type not supported yet",
         )
-    return {"source_url": url, "summary": result}
+    return result
+
+
+# Serve frontend static files when running in Docker (static dir present).
+# Must be last so API routes (e.g. /summaries/by-url) are matched first.
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str, request: Request):
+        """Serve index.html for non-API GET requests (SPA fallback)."""
+        if request.method != "GET":
+            raise HTTPException(status_code=404, detail="Not found")
+        path = STATIC_DIR / full_path
+        if path.is_file():
+            return FileResponse(path)
+        return FileResponse(STATIC_DIR / "index.html")
