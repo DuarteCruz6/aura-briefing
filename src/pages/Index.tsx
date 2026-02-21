@@ -3,7 +3,7 @@ import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin } from "lucide-rea
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { TodaysBriefing } from "../components/TodaysBriefing";
-import { BriefingCard, briefings as staticBriefings } from "../components/BriefingCard";
+import { BriefingCard } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { PremiumBanner } from "../components/PremiumBanner";
@@ -60,7 +60,7 @@ const Index = () => {
     };
   }, []);
 
-  // Map API briefings to card shape, or use static list when no sources
+  // Map API briefings to card shape (from user's sources in DB)
   const sourceIconMap: Record<string, React.ReactNode> = {
     youtube: <TrendingUp className="w-5 h-5" />,
     x: <Cpu className="w-5 h-5" />,
@@ -68,26 +68,17 @@ const Index = () => {
     news: <Globe className="w-5 h-5" />,
     podcast: <Cpu className="w-5 h-5" />,
   };
-  const staticFiltered =
-    frequency === "daily"
-      ? staticBriefings
-      : frequency === "weekly"
-      ? staticBriefings.filter((_, i) => i < 3)
-      : staticBriefings.filter((_, i) => i < 2);
-  const briefingCards =
-    apiBriefings.length > 0
-      ? apiBriefings.map((b) => ({
-          title: b.title,
-          description: b.error ? "Could not fetch latest." : "Latest from your source",
-          duration: "—",
-          topics: [b.source_type],
-          confidence: b.error ? 50 : 85,
-          summary: b.error ? b.error : "Latest update from your followed source.",
-          icon: sourceIconMap[b.source_type] ?? <Globe className="w-5 h-5" />,
-          audioUrl: "",
-        }))
-      : staticFiltered;
-  const filteredBriefings = briefingCards;
+  const filteredBriefings = apiBriefings.map((b) => ({
+    id: b.id,
+    title: b.title,
+    description: b.error ? "Could not fetch latest." : "Latest from your source",
+    duration: "—",
+    topics: [b.source_type],
+    confidence: b.error ? 50 : 85,
+    summary: b.error ? b.error : "Latest update from your followed source.",
+    icon: sourceIconMap[b.source_type] ?? <Globe className="w-5 h-5" />,
+    audioUrl: "",
+  }));
 
   const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
 
@@ -167,10 +158,14 @@ const Index = () => {
               </h3>
               {briefingsLoading ? (
                 <p className="text-sm text-muted-foreground py-4">Loading briefings…</p>
+              ) : filteredBriefings.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6">
+                  No briefings yet. Add sources in Explore to get personalized briefings from your feeds.
+                </p>
               ) : (
                 filteredBriefings.map((b, i) => (
                   <BriefingCard
-                    key={b.title}
+                    key={b.id}
                     {...b}
                     index={i}
                     isPremium={isPremium}
