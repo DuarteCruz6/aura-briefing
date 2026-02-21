@@ -13,9 +13,9 @@ interface LocalSource {
 const STORAGE_KEY = "briefcast_sources";
 
 const platforms = [
-  { id: "youtube", label: "YouTube", icon: Youtube, placeholder: "https://youtube.com/@channel", color: "text-red-500" },
-  { id: "x", label: "X / Twitter", icon: Twitter, placeholder: "https://x.com/username", color: "text-foreground" },
-  { id: "linkedin", label: "LinkedIn", icon: Linkedin, placeholder: "https://linkedin.com/in/profile", color: "text-blue-500" },
+  { id: "youtube", label: "YouTube", icon: Youtube, baseUrl: "https://youtube.com/", placeholder: "@channel or channel-name", color: "text-red-500" },
+  { id: "x", label: "X / Twitter", icon: Twitter, baseUrl: "https://x.com/", placeholder: "username", color: "text-foreground" },
+  { id: "linkedin", label: "LinkedIn", icon: Linkedin, baseUrl: "https://linkedin.com/in/", placeholder: "profile-name", color: "text-blue-500" },
 ] as const;
 
 function loadSources(): LocalSource[] {
@@ -36,13 +36,14 @@ export const SourcesSection = () => {
   useEffect(() => { saveSources(sources); }, [sources]);
 
   const handleAdd = () => {
-    const trimmed = sourceUrl.trim();
+    const trimmed = sourceUrl.trim().replace(/^\/+/, "");
     if (!trimmed) return;
-    if (sources.some((s) => s.url === trimmed)) {
+    const fullUrl = platformMeta.baseUrl + trimmed;
+    if (sources.some((s) => s.url === fullUrl)) {
       toast.error("You're already following this source");
       return;
     }
-    setSources((prev) => [{ id: crypto.randomUUID(), type: activePlatform, url: trimmed, addedAt: new Date().toISOString() }, ...prev]);
+    setSources((prev) => [{ id: crypto.randomUUID(), type: activePlatform, url: fullUrl, addedAt: new Date().toISOString() }, ...prev]);
     setSourceUrl("");
     toast.success("Source added!");
   };
@@ -52,8 +53,8 @@ export const SourcesSection = () => {
     toast.success("Source removed");
   };
 
-  const filteredSources = sources.filter((s) => s.type === activePlatform);
   const platformMeta = platforms.find((p) => p.id === activePlatform)!;
+  const filteredSources = sources.filter((s) => s.type === activePlatform);
 
   return (
     <motion.section
@@ -92,18 +93,23 @@ export const SourcesSection = () => {
 
       {/* Add source */}
       <div className="flex gap-3 mb-6">
-        <input
-          type="url"
-          value={sourceUrl}
-          onChange={(e) => setSourceUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder={platformMeta.placeholder}
-          className="flex-1 h-10 px-3 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-        />
+        <div className="flex flex-1 h-10 rounded-lg bg-secondary/50 border border-border/50 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary/50 transition-all overflow-hidden">
+          <span className="flex items-center pl-3 text-sm text-muted-foreground whitespace-nowrap select-none">
+            {platformMeta.baseUrl}
+          </span>
+          <input
+            type="text"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            placeholder={platformMeta.placeholder}
+            className="flex-1 h-full bg-transparent border-none text-foreground placeholder:text-muted-foreground focus:outline-none text-sm px-1"
+          />
+        </div>
         <button
           onClick={handleAdd}
           disabled={!sourceUrl.trim()}
-          className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
           <Plus className="w-4 h-4" /> Follow
         </button>
