@@ -74,19 +74,16 @@ const Explore = () => {
   };
 
   const filteredTopics = useMemo(
-    () => topics.filter((t) => !isFavourite(t.id, "topic") && (t.label.toLowerCase().includes(topicSearch.toLowerCase()) || t.desc.toLowerCase().includes(topicSearch.toLowerCase()))),
-    [topicSearch, isFavourite]
+    () => topics.filter((t) => t.label.toLowerCase().includes(topicSearch.toLowerCase()) || t.desc.toLowerCase().includes(topicSearch.toLowerCase())),
+    [topicSearch]
   );
 
   const filteredRegions = useMemo(
-    () => regions.filter((r) => !isFavourite(r.id, "region") && (r.label.toLowerCase().includes(regionSearch.toLowerCase()) || r.desc.toLowerCase().includes(regionSearch.toLowerCase()))),
-    [regionSearch, isFavourite]
+    () => regions.filter((r) => r.label.toLowerCase().includes(regionSearch.toLowerCase()) || r.desc.toLowerCase().includes(regionSearch.toLowerCase())),
+    [regionSearch]
   );
 
-  const filteredCustom = useMemo(
-    () => customInterests.filter((c) => !isFavourite(c, "interest")),
-    [customInterests, isFavourite]
-  );
+  const filteredCustom = customInterests;
 
   const showTopics = filteredTopics.length > 0;
   const showRegions = filteredRegions.length > 0;
@@ -124,7 +121,6 @@ const Explore = () => {
             <div className="flex flex-wrap gap-2">
               {trendingNow.map((item, i) => {
                 const faved = isFavourite(item.id, "topic");
-                if (faved) return null;
                 return (
                   <motion.button
                     key={item.label}
@@ -137,7 +133,7 @@ const Explore = () => {
                     <span className="text-base">{item.emoji}</span>
                     <span className="text-sm font-medium text-foreground">{item.label}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">{item.category}</span>
-                    <Heart className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <Heart className={`w-3.5 h-3.5 transition-colors ${faved ? "fill-primary text-primary" : "text-muted-foreground group-hover:text-primary"}`} />
                   </motion.button>
                 );
               })}
@@ -221,7 +217,7 @@ const Explore = () => {
                       className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
                       title="Add to favourites"
                     >
-                      <Heart className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
+                      <Heart className={`w-3.5 h-3.5 transition-colors ${isFavourite(t.id, "topic") ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
                     </button>
                   </motion.div>
                 ))}
@@ -262,7 +258,7 @@ const Explore = () => {
                       className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
                       title="Add to favourites"
                     >
-                      <Heart className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
+                      <Heart className={`w-3.5 h-3.5 transition-colors ${isFavourite(r.id, "region") ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
                     </button>
                   </motion.div>
                 ))}
