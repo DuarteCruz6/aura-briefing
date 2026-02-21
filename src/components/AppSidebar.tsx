@@ -33,7 +33,7 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
     <motion.aside
       animate={{ width: collapsed ? 72 : 240 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-full flex flex-col border-r border-border/50 bg-sidebar py-6 overflow-hidden flex-shrink-0"
+      className="h-full hidden sm:flex flex-col border-r border-border/50 bg-sidebar py-6 overflow-hidden flex-shrink-0"
     >
       {/* Logo */}
       <div className="px-4 mb-8 flex items-center justify-between">

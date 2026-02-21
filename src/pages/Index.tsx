@@ -95,7 +95,7 @@ const Index = () => {
       <AppSidebar />
 
       <main className="flex-1 flex flex-col overflow-hidden relative z-10">
-        <div className="flex-1 overflow-y-auto scrollbar-thin pb-4">
+        <div className="flex-1 overflow-y-auto scrollbar-thin pb-20 sm:pb-4">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             {/* Top bar */}
             <div className="flex items-center justify-between mb-6 sm:mb-8">
