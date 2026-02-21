@@ -487,6 +487,27 @@ def delete_source(source_id: int, user_id: int = 1, db: Session = Depends(get_db
     return {"deleted": True}
 
 
+@app.get("/sources/latest")
+def get_sources_latest(user_id: int = 1, db: Session = Depends(get_db)):
+    """
+    For each source the user follows, fetch the latest post / video / article URL.
+    YouTube: latest video from channel. News/Podcast: latest item from RSS feed.
+    LinkedIn/X: not supported yet (returns error per source).
+    """
+    from app.services.latest_from_sources import fetch_latest_for_sources
+
+    sources = (
+        db.query(Source)
+        .filter(Source.user_id == user_id)
+        .order_by(Source.created_at.desc())
+        .all()
+    )
+    if not sources:
+        return {"sources": [], "message": "No sources to fetch. Add sources first."}
+    results = fetch_latest_for_sources(sources)
+    return {"sources": results}
+
+
 # Platform name from API -> SourceType
 _PREFERENCE_PLATFORM_MAP = {
     "youtube": SourceType.YOUTUBE,

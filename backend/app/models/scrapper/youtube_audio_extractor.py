@@ -45,6 +45,164 @@ def _get_youtube_api_key() -> str:
         return ""
 
 
+def _channel_id_from_url(url: str) -> str | None:
+    """Extract channel ID from a YouTube channel URL (not a video URL)."""
+    url = (url or "").strip().lower()
+    if not url or "youtube.com" not in url and "youtu.be" in url:
+        return None
+    # /channel/UCxxxxxxxxxxxxxxxxxx
+    m = re.search(r"youtube\.com/channel/([a-zA-Z0-9_-]{24})", url)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _channel_handle_or_username_from_url(url: str) -> tuple[str | None, bool]:
+    """
+    Extract @handle or legacy username from channel URL.
+    Returns (handle_or_username, is_handle). is_handle True means @handle (use search); False means legacy (forUsername).
+    """
+    url = (url or "").strip()
+    if not url:
+        return (None, True)
+    # /@Handle
+    m = re.search(r"youtube\.com/@([a-zA-Z0-9_-]+)", url, re.IGNORECASE)
+    if m:
+        return (m.group(1), True)
+    # /c/CustomName
+    m = re.search(r"youtube\.com/c/([a-zA-Z0-9_-]+)", url, re.IGNORECASE)
+    if m:
+        return (m.group(1), True)
+    # /user/legacyusername
+    m = re.search(r"youtube\.com/user/([a-zA-Z0-9_-]+)", url, re.IGNORECASE)
+    if m:
+        return (m.group(1), False)
+    return (None, True)
+
+
+def get_latest_video_from_channel(channel_url: str) -> tuple[dict | None, str | None]:
+    """
+    Get the latest uploaded video URL and snippet for a YouTube channel.
+    channel_url: channel page URL (e.g. youtube.com/@Handle, youtube.com/channel/UC...).
+    Returns ({"url": "https://...", "title": "...", "published_at": "..."}, error_message).
+    """
+    api_key = _get_youtube_api_key()
+    if not api_key:
+        return (None, "YOUTUBE_API_KEY not set")
+
+    channel_url = (channel_url or "").strip()
+    if not channel_url:
+        return (None, "Channel URL is required")
+
+    channel_id = _channel_id_from_url(channel_url)
+    if not channel_id:
+        handle_or_user, is_handle = _channel_handle_or_username_from_url(channel_url)
+        if not handle_or_user:
+            return (None, "Unsupported channel URL format (use /channel/ID, /@Handle, /c/Name, or /user/name)")
+        if is_handle:
+            # Resolve @handle via search
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    r = client.get(
+                        "https://www.googleapis.com/youtube/v3/search",
+                        params={
+                            "part": "snippet",
+                            "type": "channel",
+                            "q": f"@{handle_or_user}",
+                            "key": api_key,
+                            "maxResults": 1,
+                        },
+                    )
+                    r.raise_for_status()
+                    data = r.json()
+            except Exception as e:
+                return (None, f"YouTube API search failed: {e}")
+            items = data.get("items") or []
+            if not items:
+                return (None, "Channel not found for this handle")
+            channel_id = items[0].get("id", {}).get("channelId")
+            if not channel_id:
+                return (None, "Could not resolve channel ID")
+        else:
+            # Legacy username: forUsername
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    r = client.get(
+                        "https://www.googleapis.com/youtube/v3/channels",
+                        params={
+                            "part": "contentDetails",
+                            "forUsername": handle_or_user,
+                            "key": api_key,
+                        },
+                    )
+                    r.raise_for_status()
+                    data = r.json()
+            except Exception as e:
+                return (None, f"YouTube API channels failed: {e}")
+            items = data.get("items") or []
+            if not items:
+                return (None, "Channel not found for this username")
+            channel_id = items[0].get("id")
+            if not channel_id:
+                return (None, "Could not resolve channel ID")
+
+    # Get uploads playlist ID
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(
+                "https://www.googleapis.com/youtube/v3/channels",
+                params={
+                    "part": "contentDetails",
+                    "id": channel_id,
+                    "key": api_key,
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        return (None, f"YouTube API channels failed: {e}")
+    items = data.get("items") or []
+    if not items:
+        return (None, "Channel not found")
+    uploads_id = (items[0].get("contentDetails") or {}).get("relatedPlaylists", {}).get("uploads")
+    if not uploads_id:
+        return (None, "Channel has no uploads playlist")
+
+    # Get latest playlist item
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(
+                "https://www.googleapis.com/youtube/v3/playlistItems",
+                params={
+                    "part": "snippet",
+                    "playlistId": uploads_id,
+                    "maxResults": 1,
+                    "key": api_key,
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        return (None, f"YouTube API playlistItems failed: {e}")
+    items = data.get("items") or []
+    if not items:
+        return (None, "No videos in channel")
+    snippet = items[0].get("snippet") or {}
+    video_id = (snippet.get("resourceId") or {}).get("videoId")
+    if not video_id:
+        return (None, "Could not get video ID from playlist item")
+    published = snippet.get("publishedAt") or ""
+    title = snippet.get("title") or ""
+    return (
+        {
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": title,
+            "published_at": published,
+        },
+        None,
+    )
+
+
 def _fetch_metadata_api(video_id: str, api_key: str) -> dict | None:
     """Fetch video snippet (title, channelTitle) from YouTube Data API v3."""
     if not api_key:
