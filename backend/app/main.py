@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import engine, get_db, init_db
 from app.models.database import ExtractedSummary
@@ -39,6 +40,16 @@ app = FastAPI(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+# CORS so frontend (e.g. Vite on port 8080) can call the API
+origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/tables")

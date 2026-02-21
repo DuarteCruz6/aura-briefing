@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     app_name: str = "Pastel de Data"
     environment: str = "development"
 
+    # CORS (comma-separated origins; e.g. http://localhost:8080 for frontend dev server)
+    cors_origins: str = "http://localhost:8080,http://127.0.0.1:8080"
+
     # Database
     database_url: str = "sqlite:///./data/newsletter.db"
 
