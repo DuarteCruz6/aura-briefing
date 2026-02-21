@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles } from "lucide-react";
+import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { useFavourites } from "../hooks/useFavourites";
@@ -65,7 +65,29 @@ const Index = () => {
     };
   }, []);
 
-  // Map API briefings to card shape (from user's sources in DB)
+  // Generate themed briefing cards from favourites
+  const favouriteIconMap: Record<string, React.ReactNode> = {
+    topic: <TrendingUp className="w-5 h-5" />,
+    region: <MapPin className="w-5 h-5" />,
+    interest: <Sparkles className="w-5 h-5" />,
+    source: <Globe className="w-5 h-5" />,
+  };
+  const themeIcons = [<Headphones className="w-5 h-5" />, <Radio className="w-5 h-5" />, <Mic className="w-5 h-5" />, <Cpu className="w-5 h-5" />];
+  const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
+
+  const favouriteBriefings = hasFavourites ? [{
+    id: "combined-briefing",
+    title: `Your ${freqLabel} Briefing`,
+    description: `Covering ${favourites.map(f => f.label).join(", ")}`,
+    duration: `${5 + favourites.length * 2} min`,
+    topics: favourites.map(f => f.label).slice(0, 4),
+    confidence: 85,
+    summary: `Your personalized podcast briefing covering the latest developments in ${favourites.map(f => f.label).join(", ")}.`,
+    icon: <Headphones className="w-5 h-5" />,
+    audioUrl: "/audio/podcast.wav",
+  }] : [];
+
+  // Merge API briefings with favourite-generated briefings
   const sourceIconMap: Record<string, React.ReactNode> = {
     youtube: <TrendingUp className="w-5 h-5" />,
     x: <Cpu className="w-5 h-5" />,
@@ -73,7 +95,7 @@ const Index = () => {
     news: <Globe className="w-5 h-5" />,
     podcast: <Cpu className="w-5 h-5" />,
   };
-  const filteredBriefings = apiBriefings.map((b) => ({
+  const apiBriefingCards = apiBriefings.map((b) => ({
     id: b.id,
     title: b.title,
     description: b.error ? "Could not fetch latest." : "Latest from your source",
@@ -85,7 +107,9 @@ const Index = () => {
     audioUrl: "",
   }));
 
-  const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
+  const filteredBriefings = [...favouriteBriefings, ...apiBriefingCards];
+
+
 
   const handlePlay = useCallback((audioUrl: string, title: string) => {
     setCurrentTrack({ src: audioUrl, title });

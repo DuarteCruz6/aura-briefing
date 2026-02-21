@@ -94,13 +94,39 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
     });
   }, []);
 
-  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audio.currentTime = pct * duration;
-  }, [duration]);
+  const seekBarRef = useRef<HTMLDivElement>(null);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekProgress, setSeekProgress] = useState<number | null>(null);
+
+  const calcSeekPct = useCallback((clientX: number) => {
+    const bar = seekBarRef.current;
+    if (!bar) return 0;
+    const rect = bar.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, []);
+
+  const handleSeekDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!duration) return;
+    e.preventDefault();
+    const pct = calcSeekPct(e.clientX);
+    setIsSeeking(true);
+    setSeekProgress(pct * 100);
+
+    const onMove = (ev: MouseEvent) => {
+      const p = calcSeekPct(ev.clientX);
+      setSeekProgress(p * 100);
+    };
+    const onUp = (ev: MouseEvent) => {
+      const p = calcSeekPct(ev.clientX);
+      if (audioRef.current) audioRef.current.currentTime = p * duration;
+      setIsSeeking(false);
+      setSeekProgress(null);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [duration, calcSeekPct]);
 
   const handleLyricsSeek = useCallback((time: number) => {
     const audio = audioRef.current;
@@ -183,10 +209,10 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
           {/* Timeline */}
           <div className="w-full max-w-xl">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
-              <div className="flex-1 relative group cursor-pointer" onClick={handleSeek}>
+              <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(isSeeking && seekProgress !== null ? (seekProgress / 100) * duration : currentTime)}</span>
+              <div ref={seekBarRef} className="flex-1 relative group cursor-pointer" onMouseDown={handleSeekDown}>
                 <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full relative transition-all duration-100" style={{ width: `${progress}%` }}>
+                  <div className="h-full bg-primary rounded-full relative" style={{ width: `${isSeeking && seekProgress !== null ? seekProgress : progress}%` }}>
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" />
                   </div>
                 </div>

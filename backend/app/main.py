@@ -23,6 +23,7 @@ from app.models.database import (
     ExtractedSummary,
     FetchFrequency,
     Run,
+    RunStatus,
     Source,
     SourceType,
     Summary,
@@ -1139,6 +1140,20 @@ async def generate_personal_briefing(
         if not (summary or "").strip():
             raise HTTPException(status_code=503, detail="No summary generated")
         logger.info("Briefing: phase 3 done")
+
+        # 3b) Save briefing text to DB (Run + Summary) so the AI assistant can use it
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        run = Run(
+            user_id=user_id,
+            status=RunStatus.COMPLETED,
+            started_at=now,
+            finished_at=now,
+        )
+        db.add(run)
+        db.flush()  # get run.id
+        db.add(Summary(run_id=run.id, content=summary.strip()))
+        db.commit()
 
         # 4) Generate podcast audio
         logger.info("Briefing: phase 4 - generating TTS audio")
