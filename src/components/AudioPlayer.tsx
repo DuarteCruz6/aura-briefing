@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, RotateCcw, RotateCw } from "lucide-react";
+import { Play, Pause, Volume2, RotateCcw, RotateCw, SkipBack, SkipForward } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 
@@ -15,9 +15,13 @@ interface AudioPlayerProps {
   trackTitle?: string;
   externalPlaying?: boolean;
   onPlayingChange?: (playing: boolean) => void;
+  onSkipNext?: () => void;
+  onSkipPrevious?: () => void;
+  hasNext?: boolean;
+  hasPrevious?: boolean;
 }
 
-export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange }: AudioPlayerProps) {
+export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange, onSkipNext, onSkipPrevious, hasNext, hasPrevious }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -131,7 +135,15 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange 
 
         {/* Controls + timeline */}
         <div className="flex-1 flex flex-col items-center gap-1">
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={onSkipPrevious}
+              disabled={!hasPrevious}
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              title="Previous briefing"
+            >
+              <SkipBack className="w-4 h-4" />
+            </button>
             <button
               onClick={() => skip(-10)}
               className="relative text-muted-foreground hover:text-foreground transition-colors"
@@ -153,6 +165,14 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange 
             >
               <RotateCw className="w-5 h-5" />
               <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
+            </button>
+            <button
+              onClick={onSkipNext}
+              disabled={!hasNext}
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              title="Next briefing"
+            >
+              <SkipForward className="w-4 h-4" />
             </button>
           </div>
 

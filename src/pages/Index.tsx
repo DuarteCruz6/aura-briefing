@@ -49,6 +49,15 @@ const Index = () => {
     };
   }, []);
 
+  // Filter briefings based on frequency
+  const filteredBriefings = frequency === "daily"
+    ? briefings
+    : frequency === "weekly"
+    ? briefings.filter((_, i) => i < 3)
+    : briefings.filter((_, i) => i < 2);
+
+  const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
+
   const handlePlay = useCallback((audioUrl: string, title: string) => {
     setCurrentTrack({ src: audioUrl, title });
     setIsPlaying(true);
@@ -58,14 +67,25 @@ const Index = () => {
     setIsPlaying(false);
   }, []);
 
-  // Filter briefings based on frequency
-  const filteredBriefings = frequency === "daily"
-    ? briefings
-    : frequency === "weekly"
-    ? briefings.filter((_, i) => i < 3) // Show fewer for weekly
-    : briefings.filter((_, i) => i < 2); // Show even fewer for monthly (top summaries)
+  const currentIndex = currentTrack ? filteredBriefings.findIndex(b => b.title === currentTrack.title) : -1;
 
-  const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
+  const handleSkipNext = useCallback(() => {
+    const idx = currentTrack ? filteredBriefings.findIndex(b => b.title === currentTrack.title) : -1;
+    if (idx >= 0 && idx < filteredBriefings.length - 1) {
+      const next = filteredBriefings[idx + 1];
+      setCurrentTrack({ src: next.audioUrl, title: next.title });
+      setIsPlaying(true);
+    }
+  }, [currentTrack, filteredBriefings]);
+
+  const handleSkipPrevious = useCallback(() => {
+    const idx = currentTrack ? filteredBriefings.findIndex(b => b.title === currentTrack.title) : -1;
+    if (idx > 0) {
+      const prev = filteredBriefings[idx - 1];
+      setCurrentTrack({ src: prev.audioUrl, title: prev.title });
+      setIsPlaying(true);
+    }
+  }, [currentTrack, filteredBriefings]);
 
   if (!user) return null;
 
@@ -135,6 +155,10 @@ const Index = () => {
           trackTitle={currentTrack?.title}
           externalPlaying={isPlaying}
           onPlayingChange={setIsPlaying}
+          onSkipNext={handleSkipNext}
+          onSkipPrevious={handleSkipPrevious}
+          hasNext={currentIndex >= 0 && currentIndex < filteredBriefings.length - 1}
+          hasPrevious={currentIndex > 0}
         />
       </main>
 
