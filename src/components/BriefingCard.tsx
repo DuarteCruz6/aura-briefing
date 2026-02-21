@@ -2,7 +2,6 @@ import { Play, Pause, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDo
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
-import { VideoPlayerPopup } from "./VideoPlayerPopup";
 
 interface BriefingCardProps {
   title: string;
@@ -19,6 +18,7 @@ interface BriefingCardProps {
   onPlay?: (audioUrl: string, title: string) => void;
   onPause?: () => void;
   onPremiumClick?: () => void;
+  onVideoClick?: (title: string) => void;
 }
 
 function getConfidenceColor(c: number) {
@@ -27,11 +27,10 @@ function getConfidenceColor(c: number) {
   return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
 }
 
-export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, onPlay, onPause, onPremiumClick }: BriefingCardProps) {
+export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
-  const [videoOpen, setVideoOpen] = useState(false);
   const cc = getConfidenceColor(confidence);
 
   return (
@@ -96,7 +95,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
             onClick={(e) => {
               e.stopPropagation();
               if (isPremium) {
-                setVideoOpen(true);
+                onVideoClick?.(title);
               } else {
                 onPremiumClick?.();
               }
@@ -158,7 +157,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
         )}
       </AnimatePresence>
 
-      <VideoPlayerPopup open={videoOpen} onClose={() => setVideoOpen(false)} title={title} />
+      {/* VideoPlayerPopup is now rendered at page level */}
     </motion.div>
   );
 }

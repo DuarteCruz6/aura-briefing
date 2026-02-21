@@ -8,6 +8,7 @@ import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
+import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
 
 const Index = () => {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ const Index = () => {
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [videoTitle, setVideoTitle] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(() => {
     const trial = localStorage.getItem("briefcast_trial");
     if (trial !== "active") return false;
@@ -120,6 +122,7 @@ const Index = () => {
                   onPlay={handlePlay}
                   onPause={handlePause}
                   onPremiumClick={() => setPremiumOpen(true)}
+                  onVideoClick={(t) => setVideoTitle(t)}
                 />
               ))}
             </div>
@@ -136,6 +139,7 @@ const Index = () => {
       </main>
 
       <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
+      <VideoPlayerPopup open={!!videoTitle} onClose={() => setVideoTitle(null)} title={videoTitle || ""} />
     </div>
   );
 };
