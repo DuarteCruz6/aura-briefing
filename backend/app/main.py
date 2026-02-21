@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import traceback
+import uuid
 from pathlib import Path
 
 from contextlib import asynccontextmanager
@@ -28,6 +29,12 @@ class TranscribeRequest(BaseModel):
 
 class MultiUrlRequest(BaseModel):
     urls: list[str]
+
+
+class PodcastGenerateRequest(BaseModel):
+    text: str
+    voice_id: str | None = None
+    model_id: str | None = None
 
 
 @asynccontextmanager
@@ -244,6 +251,54 @@ async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(ge
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"summary": summary}
+
+
+PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
+
+
+@app.post("/podcast/generate")
+async def generate_podcast(body: PodcastGenerateRequest):
+    """
+    Generate podcast audio from script text using ElevenLabs TTS.
+    Returns the MP3 file. Requires ELEVENLABS_API_KEY.
+    """
+    if not os.getenv("ELEVENLABS_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="ELEVENLABS_API_KEY not set; podcast generation unavailable",
+        )
+    from app.models.podcast_generation import text_to_audio
+    from app.models.podcast_generation.tts_generator import (
+        DEFAULT_MODEL_ID,
+        DEFAULT_VOICE_ID,
+    )
+
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required and cannot be empty")
+
+    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp3"
+
+    try:
+        path_str, duration_seconds = await asyncio.to_thread(
+            text_to_audio,
+            text,
+            output_path,
+            voice_id=body.voice_id or DEFAULT_VOICE_ID,
+            model_id=body.model_id or DEFAULT_MODEL_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return FileResponse(
+        path_str,
+        media_type="audio/mpeg",
+        filename="podcast.mp3",
+        headers={
+            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+        },
+    )
 
 
 # Serve frontend static files when running in Docker (static dir present).

@@ -10,7 +10,21 @@ interface PremiumBannerProps {
 
 export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) {
   const [trialStarted, setTrialStarted] = useState(() => {
-    return localStorage.getItem("briefcast_trial") === "active";
+    const trialVal = localStorage.getItem("briefcast_trial");
+    if (trialVal !== "active") return false;
+    // Check if 7-day trial has expired
+    const startStr = localStorage.getItem("briefcast_trial_start");
+    if (startStr) {
+      const start = new Date(startStr).getTime();
+      const now = Date.now();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      if (now - start > sevenDays) {
+        localStorage.removeItem("briefcast_trial");
+        localStorage.removeItem("briefcast_trial_start");
+        return false;
+      }
+    }
+    return true;
   });
 
   const handleStartTrial = () => {
@@ -87,13 +101,18 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
             <h3 className="font-display text-lg font-bold text-foreground">Turn Your Briefing Into a Video</h3>
             <p className="text-sm text-muted-foreground">One tap. Cinematic visuals, charts & motion graphics — generated in seconds.</p>
           </div>
-          <motion.div
-            animate={{ x: [0, 6, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="text-primary font-semibold text-sm whitespace-nowrap"
-          >
-            Try Free →
-          </motion.div>
+          {!trialStarted && (
+            <motion.div
+              animate={{ x: [0, 6, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="text-primary font-semibold text-sm whitespace-nowrap"
+            >
+              Try Free →
+            </motion.div>
+          )}
+          {trialStarted && (
+            <span className="text-primary font-semibold text-sm whitespace-nowrap">✓ Active</span>
+          )}
         </div>
       </motion.section>
 

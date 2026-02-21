@@ -1,29 +1,42 @@
 import { Play, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { RotatingGlobe } from "./RotatingGlobe";
 
-export function TodaysBriefing() {
+interface TodaysBriefingProps {
+  frequency?: string;
+  onPlay?: (audioUrl: string, title: string) => void;
+}
+
+const BRIEFING_AUDIO = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+export function TodaysBriefing({ frequency = "daily", onPlay }: TodaysBriefingProps) {
+  const freqLabel = frequency === "weekly" ? "This Week's" : frequency === "monthly" ? "This Month's" : "Today's";
+  const freqDesc = frequency === "weekly"
+    ? "Your weekly intelligence digest — top stories from the past 7 days."
+    : frequency === "monthly"
+    ? "Your monthly intelligence recap — key developments from the past 30 days."
+    : "Your personalized intelligence digest — 14 stories across 4 topics, synthesized from 230+ sources.";
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="glass-panel glow-border p-8 mb-8 relative overflow-hidden"
+      className="glass-panel glow-border p-5 sm:p-8 mb-8 relative overflow-hidden"
     >
       {/* Radar sweep background */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] opacity-[0.08]">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] sm:w-[300px] h-[200px] sm:h-[300px] opacity-[0.08]">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
           className="absolute inset-0 rounded-full"
           style={{
-            background: "conic-gradient(from 0deg, transparent 0%, hsl(210 100% 56%) 10%, transparent 30%)",
+            background: "conic-gradient(from 0deg, transparent 0%, hsl(var(--primary)) 10%, transparent 30%)",
           }}
         />
-        {/* Radar rings */}
         <div className="absolute inset-[20%] rounded-full border border-primary/10" />
         <div className="absolute inset-[40%] rounded-full border border-primary/10" />
         <div className="absolute inset-0 rounded-full border border-primary/10" />
-        {/* Radar dots - stories found */}
         {[
           { top: "25%", left: "60%" },
           { top: "45%", left: "80%" },
@@ -41,40 +54,48 @@ export function TodaysBriefing() {
         ))}
       </div>
 
-      <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="w-4 h-4 text-primary" />
-          <span className="text-xs font-medium text-primary uppercase tracking-wider">AI-Curated</span>
-        </div>
-        <h1 className="font-display text-3xl font-bold text-foreground mb-2">Today's Briefing</h1>
-        <p className="text-muted-foreground mb-6 max-w-lg">
-          Your personalized intelligence digest — 14 stories across 4 topics, synthesized from 230+ sources.
-        </p>
-
-        <div className="flex items-center gap-4">
-          {/* Pulsing Audio Orb */}
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.95 }}
-            className="relative w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow"
-          >
-            {/* Pulse rings */}
-            <motion.div
-              animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-              className="absolute inset-0 rounded-full bg-primary/30"
-            />
-            <motion.div
-              animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
-              className="absolute inset-0 rounded-full bg-primary/20"
-            />
-            <Play className="w-6 h-6 ml-0.5 fill-primary-foreground relative z-10" />
-          </motion.button>
-          <div>
-            <span className="text-sm font-medium text-foreground">Play Full Briefing</span>
-            <p className="text-xs text-muted-foreground">7 min · Updated 12 min ago</p>
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        {/* Left content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-xs font-medium text-primary uppercase tracking-wider">AI-Curated</span>
           </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-2">{freqLabel} Briefing</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mb-6 max-w-lg">
+            {freqDesc}
+          </p>
+
+          <div className="flex items-center gap-4">
+            {/* Pulsing Audio Orb */}
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onPlay?.(BRIEFING_AUDIO, `${freqLabel} Briefing`)}
+              className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow flex-shrink-0"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                className="absolute inset-0 rounded-full bg-primary/30"
+              />
+              <motion.div
+                animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
+                className="absolute inset-0 rounded-full bg-primary/20"
+              />
+              <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5 fill-primary-foreground relative z-10" />
+            </motion.button>
+            <div>
+              <span className="text-sm font-medium text-foreground">Play Full Briefing</span>
+              <p className="text-xs text-muted-foreground">7 min · Updated 12 min ago</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Globe */}
+        <div className="hidden md:block flex-shrink-0">
+          <RotatingGlobe />
         </div>
       </div>
     </motion.section>

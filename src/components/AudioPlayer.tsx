@@ -10,15 +10,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Chapter markers for the timeline
-const CHAPTERS = [
-  { label: "Intro", pct: 0 },
-  { label: "World", pct: 15 },
-  { label: "Tech", pct: 35 },
-  { label: "Ireland", pct: 60 },
-  { label: "Sports", pct: 80 },
-];
-
 interface AudioPlayerProps {
   src?: string;
   trackTitle?: string;
@@ -94,23 +85,17 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
     if (audioRef.current) audioRef.current.volume = pct;
   }, []);
 
-  const jumpToChapter = useCallback((pct: number) => {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
-    audio.currentTime = (pct / 100) * duration;
-  }, [duration]);
-
   return (
     <motion.div
       initial={{ y: 60 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="sticky bottom-0 z-40 glass-panel-strong border-t border-border/50 px-6 py-3"
+      className="sticky bottom-0 z-40 glass-panel-strong border-t border-border/50 px-3 sm:px-6 py-3"
     >
       <audio ref={audioRef} preload="metadata" />
-      <div className="flex items-center gap-6">
-        {/* Now playing info */}
-        <div className="flex items-center gap-3 min-w-[200px]">
+      <div className="flex items-center gap-3 sm:gap-6">
+        {/* Now playing info — hidden on very small screens */}
+        <div className="hidden sm:flex items-center gap-3 min-w-[160px] lg:min-w-[200px]">
           <div className="relative w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             {playing && (
               <motion.div
@@ -121,17 +106,22 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             )}
             <div className={`w-3 h-3 rounded-full bg-primary ${playing ? "animate-pulse" : ""}`} />
           </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">{trackTitle || "Select a briefing"}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{trackTitle || "Select a briefing"}</p>
             <p className="text-xs text-muted-foreground">{duration > 0 ? formatTime(duration) : "--:--"}</p>
           </div>
         </div>
 
         {/* Controls + timeline */}
         <div className="flex-1 flex flex-col items-center gap-1">
-          <div className="flex items-center gap-4">
-            <button onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground transition-colors" title="Back 10s">
-              <RotateCcw className="w-4 h-4" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button
+              onClick={() => skip(-10)}
+              className="relative text-muted-foreground hover:text-foreground transition-colors"
+              title="Back 10 seconds"
+            >
+              <RotateCcw className="w-5 h-5" />
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
             </button>
             <button
               onClick={togglePlay}
@@ -139,13 +129,18 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             >
               {playing ? <Pause className="w-4 h-4 text-background" /> : <Play className="w-4 h-4 text-background ml-0.5" />}
             </button>
-            <button onClick={() => skip(10)} className="text-muted-foreground hover:text-foreground transition-colors" title="Forward 10s">
-              <RotateCw className="w-4 h-4" />
+            <button
+              onClick={() => skip(10)}
+              className="relative text-muted-foreground hover:text-foreground transition-colors"
+              title="Forward 10 seconds"
+            >
+              <RotateCw className="w-5 h-5" />
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
             </button>
           </div>
 
-          {/* Timeline with chapter markers */}
-          <div className="w-full max-w-xl flex flex-col gap-0.5">
+          {/* Timeline */}
+          <div className="w-full max-w-xl">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{formatTime(currentTime)}</span>
               <div className="flex-1 relative group cursor-pointer" onClick={handleSeek}>
@@ -157,50 +152,25 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" />
                   </div>
                 </div>
-                {/* Chapter markers */}
-                {CHAPTERS.map((ch) => (
-                  <button
-                    key={ch.label}
-                    onClick={(e) => { e.stopPropagation(); jumpToChapter(ch.pct); }}
-                    className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-muted-foreground/50 hover:bg-primary hover:scale-150 transition-all z-10"
-                    style={{ left: `${ch.pct}%` }}
-                    title={ch.label}
-                  />
-                ))}
               </div>
               <span className="text-[10px] text-muted-foreground tabular-nums w-8">{duration > 0 ? formatTime(duration) : "--:--"}</span>
-            </div>
-            {/* Chapter labels */}
-            <div className="flex items-center relative ml-10 mr-8">
-              {CHAPTERS.map((ch, i) => (
-                <button
-                  key={ch.label}
-                  onClick={() => jumpToChapter(ch.pct)}
-                  className={`absolute text-[9px] font-medium transition-colors -translate-x-1/2 ${
-                    progress >= ch.pct && (i === CHAPTERS.length - 1 || progress < CHAPTERS[i + 1].pct)
-                      ? "text-primary"
-                      : "text-muted-foreground/60 hover:text-muted-foreground"
-                  }`}
-                  style={{ left: `${ch.pct}%` }}
-                >
-                  {ch.label}
-                </button>
-              ))}
             </div>
           </div>
         </div>
 
-        {/* Right controls */}
-        <div className="flex items-center gap-3 min-w-[140px] justify-end">
+        {/* Right controls — hide volume on small screens */}
+        <div className="flex items-center gap-2 sm:gap-3 sm:min-w-[140px] justify-end">
           <button
             onClick={cycleSpeed}
             className="text-xs font-medium text-muted-foreground px-2 py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors"
           >
             {SPEED_OPTIONS[speedIndex]}x
           </button>
-          <Volume2 className="w-4 h-4 text-muted-foreground" />
-          <div className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onClick={handleVolumeChange}>
-            <div className="h-full bg-muted-foreground rounded-full" style={{ width: `${volume * 100}%` }} />
+          <div className="hidden sm:flex items-center gap-2">
+            <Volume2 className="w-4 h-4 text-muted-foreground" />
+            <div className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onClick={handleVolumeChange}>
+              <div className="h-full bg-muted-foreground rounded-full" style={{ width: `${volume * 100}%` }} />
+            </div>
           </div>
         </div>
       </div>

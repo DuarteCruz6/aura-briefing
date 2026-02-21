@@ -11,6 +11,11 @@ const briefingLengths = [
   { value: 7, label: "7 min", desc: "Key stories" },
   { value: 12, label: "12 min", desc: "Deep dive" },
 ];
+const briefingFrequencies = [
+  { value: "daily", label: "Daily", desc: "Every morning" },
+  { value: "weekly", label: "Weekly", desc: "Monday digest" },
+  { value: "monthly", label: "Monthly", desc: "Monthly recap" },
+];
 const voiceStyles = [
   { value: "professional", label: "Professional", desc: "Calm and authoritative" },
   { value: "conversational", label: "Conversational", desc: "Friendly and casual" },
@@ -23,6 +28,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const [briefingLength, setBriefingLength] = useState(7);
   const [voiceStyle, setVoiceStyle] = useState("professional");
+  const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -96,6 +102,26 @@ const Settings = () => {
                   onClick={() => setBriefingLength(opt.value)}
                   className={`glass-panel rounded-xl p-4 text-center transition-all border ${
                     briefingLength === opt.value
+                      ? "border-primary/50 bg-primary/10"
+                      : "border-white/[0.06] hover:border-white/[0.12]"
+                  }`}
+                >
+                  <p className="font-display font-bold text-lg text-foreground">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          {/* Briefing Frequency */}
+          <Section title="Briefing Frequency">
+            <div className="grid grid-cols-3 gap-3">
+              {briefingFrequencies.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setFrequency(opt.value); localStorage.setItem("briefcast_frequency", opt.value); }}
+                  className={`glass-panel rounded-xl p-4 text-center transition-all border ${
+                    frequency === opt.value
                       ? "border-primary/50 bg-primary/10"
                       : "border-white/[0.06] hover:border-white/[0.12]"
                   }`}

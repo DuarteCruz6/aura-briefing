@@ -1,3 +1,7 @@
+"""
+Database models. ExtractedSummary is used by the summary API.
+User, Source, Item, Run, RunItem, Summary, Audio are for future use (auth, scheduled runs, etc.).
+"""
 from app.models.database.base import Base
 from app.models.database.user import User
 from app.models.database.source import Source, SourceType, FetchFrequency
@@ -6,6 +10,7 @@ from app.models.database.run import Run, RunStatus
 from app.models.database.run_item import RunItem
 from app.models.database.summary import Summary
 from app.models.database.audio import Audio
+from app.models.database.extracted_summary import ExtractedSummary
 
 __all__ = [
     "Base",
