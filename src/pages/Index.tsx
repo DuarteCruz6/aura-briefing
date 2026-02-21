@@ -124,7 +124,7 @@ const Index = () => {
               ))}
             </div>
 
-            <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} />
+            <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} onTrialActivated={() => setIsPremium(true)} />
           </div>
         </div>
         <AudioPlayer
