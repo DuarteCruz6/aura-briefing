@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "Pastel de Data"
+    app_name: str = "Unscrolling"
     environment: str = "development"
 
     # CORS (comma-separated origins; include your frontend origin to avoid OPTIONS 400)

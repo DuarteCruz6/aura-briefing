@@ -193,7 +193,7 @@ const Index = () => {
                 <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
                   <Compass className="w-10 h-10 text-primary" />
                 </div>
-                <h2 className="font-display text-2xl font-bold text-foreground mb-3">Welcome to BriefCast</h2>
+                <h2 className="font-display text-2xl font-bold text-foreground mb-3">Welcome to Unscrolling</h2>
                 <p className="text-muted-foreground max-w-md mb-8">
                   Start by adding your interests — pick topics, regions, and sources you care about, and we'll generate personalized podcast briefings for you.
                 </p>
