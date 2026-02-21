@@ -46,19 +46,19 @@ const Explore = () => {
     const stored = localStorage.getItem("briefcast_custom_interests");
     return stored ? JSON.parse(stored) : [];
   });
-  const [newInterest, setNewInterest] = useState("");
+  
 
   const toggle = (id: string, list: string[], setList: (v: string[]) => void) => {
     setList(list.includes(id) ? list.filter((i) => i !== id) : [...list, id]);
   };
 
   const addInterest = () => {
-    const trimmed = newInterest.trim();
+    const trimmed = search.trim();
     if (!trimmed || customInterests.includes(trimmed)) return;
     const updated = [...customInterests, trimmed];
     setCustomInterests(updated);
     localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
-    setNewInterest("");
+    setSearch("");
   };
 
   const removeInterest = (interest: string) => {
@@ -126,9 +126,23 @@ const Explore = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search topics, regions, interests..."
-              className="w-full h-12 pl-12 pr-4 rounded-xl bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && search.trim() && !topics.some(t => t.label.toLowerCase() === search.trim().toLowerCase()) && !regions.some(r => r.label.toLowerCase() === search.trim().toLowerCase())) {
+                  addInterest();
+                }
+              }}
+              placeholder="Search or add a custom interest..."
+              className="w-full h-12 pl-12 pr-24 rounded-xl bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
             />
+            {search.trim() && !customInterests.includes(search.trim()) && (
+              <button
+                onClick={() => { addInterest(); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add
+              </button>
+            )}
           </motion.div>
 
           {/* Trending Now */}
@@ -190,27 +204,6 @@ const Explore = () => {
                 Your Custom Interests
               </h2>
 
-              {/* Add new interest */}
-              <div className="flex gap-2 mb-4">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={newInterest}
-                    onChange={(e) => setNewInterest(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addInterest()}
-                    placeholder="Add a topic, keyword, or interest..."
-                    className="w-full h-11 pl-4 pr-4 rounded-xl bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
-                  />
-                </div>
-                <button
-                  onClick={addInterest}
-                  disabled={!newInterest.trim()}
-                  className="h-11 px-5 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-40 flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add
-                </button>
-              </div>
 
               {/* Interest chips */}
               {filteredCustom.length > 0 ? (
