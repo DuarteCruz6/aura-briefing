@@ -234,7 +234,7 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
     """
     Single entry for any URL: YouTube or text (articles, X, LinkedIn, etc.).
     If in DB returns cached summary; else extracts (YouTube: metadata + transcript via YouTube API;
-    text: fetch page → Gemini), saves, and returns. Response is the summary JSON (e.g. title, text, channel, description).
+    text: fetch page → Gemini), saves, and returns. Response is the summary JSON (e.g. title, text, channel).
     """
     url = (body.url or "").strip()
     if not url:

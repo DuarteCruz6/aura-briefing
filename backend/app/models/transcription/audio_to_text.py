@@ -78,7 +78,7 @@ def youtube_url_to_text(
         language_code: Unused; kept for compatibility.
 
     Returns:
-        Dict with keys: channel, title, description, text (transcript).
+        Dict with keys: channel, title, text (transcript).
         None if metadata or transcript is unavailable.
     """
     from app.models.scrapper.youtube_audio_extractor import extract_audio
@@ -91,6 +91,5 @@ def youtube_url_to_text(
     return {
         "channel": metadata.get("channel", ""),
         "title": metadata.get("title", ""),
-        "description": metadata.get("description", ""),
         "text": transcript,
     }
