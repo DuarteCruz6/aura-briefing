@@ -50,13 +50,13 @@ export function AppSidebar({ activePage = "home" }: AppSidebarProps) {
               exit={{ opacity: 0 }}
               className="flex items-center gap-2"
             >
-              <img src={logo} alt="Briefcast" className="w-10 h-10 object-contain" />
-              <span className="font-display font-semibold text-foreground text-lg">Briefcast</span>
+              <img src={logo} alt="Unscrolling" className="w-10 h-10 object-contain" />
+              <span className="font-display font-semibold text-foreground text-lg">Unscrolling</span>
             </motion.div>
           )}
         </AnimatePresence>
         {collapsed && (
-          <img src={logo} alt="Briefcast" className="w-10 h-10 object-contain mx-auto" />
+          <img src={logo} alt="Unscrolling" className="w-10 h-10 object-contain mx-auto" />
         )}
       </div>
 

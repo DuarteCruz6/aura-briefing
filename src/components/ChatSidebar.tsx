@@ -126,8 +126,8 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
           {/* Header */}
           <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src={logo} alt="Briefcast" className="w-5 h-5 object-contain" />
-              <span className="font-display font-semibold text-sm text-foreground">Ask Briefcast</span>
+              <img src={logo} alt="Unscrolling" className="w-5 h-5 object-contain" />
+              <span className="font-display font-semibold text-sm text-foreground">Ask Unscrolling</span>
             </div>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
               <X className="w-4 h-4" />
