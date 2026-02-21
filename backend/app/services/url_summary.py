@@ -1,6 +1,6 @@
 """
 Get summary by URL: return from DB if present, otherwise extract and save.
-YouTube uses existing transcription; other URLs use a placeholder for now.
+Uses the same table (extracted_summaries) for YouTube and text URLs (X, LinkedIn, news).
 """
 import json
 import os
@@ -17,10 +17,11 @@ def _is_youtube_url(url: str) -> bool:
 
 def extract_from_other_url(url: str, output_dir: str = ".") -> dict | None:
     """
-    Extract and summarize content from a non-YouTube URL (podcast, article, etc.).
-    Placeholder: implement later for other sources.
+    Extract main text content from a non-YouTube URL (X, LinkedIn, news, etc.)
+    using the text_content_extractor (fetch + Gemini).
     """
-    return None
+    from app.models.scrapper.text_content_extractor import extract_text_content
+    return extract_text_content(url)
 
 
 def get_or_extract_summary(url: str, db: Session, *, output_dir: str | None = None) -> dict | None:

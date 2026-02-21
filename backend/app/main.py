@@ -106,13 +106,19 @@ def debug_table_contents(table_name: str, limit: int = 100):
 @app.post("/transcribe")
 async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_db)):
     """
-    Download audio from a YouTube URL, transcribe (ElevenLabs STT), and store
-    the summary JSON in the database keyed by URL.
-    Requires ELEVENLABS_API_KEY in env.
+    Get summary for a YouTube URL: if already in the DB (same table as text URLs),
+    return it; otherwise download, transcribe (ElevenLabs STT), store, and return.
+    Requires ELEVENLABS_API_KEY in env for first-time extraction.
     """
     url = (body.url or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
+
+    # Same table as text extractor: return if already computed
+    row = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
+    if row:
+        return json.loads(row.summary_json)
+
     if not os.getenv("ELEVENLABS_API_KEY"):
         raise HTTPException(
             status_code=503,
@@ -120,7 +126,6 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
         )
     from app.models.transcription import youtube_url_to_text
 
-    # Run blocking download + transcription in a thread
     output_dir = "/tmp/transcribe"
     os.makedirs(output_dir, exist_ok=True)
     result = await asyncio.to_thread(
@@ -131,13 +136,8 @@ async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_
     if result is None:
         raise HTTPException(status_code=502, detail="Extraction or transcription failed")
 
-    # Store summary JSON by URL (upsert: update if same URL already exists)
     summary_json = json.dumps(result, ensure_ascii=False)
-    existing = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
-    if existing:
-        existing.summary_json = summary_json
-    else:
-        db.add(ExtractedSummary(source_url=url, summary_json=summary_json))
+    db.add(ExtractedSummary(source_url=url, summary_json=summary_json))
     db.commit()
 
     return result
