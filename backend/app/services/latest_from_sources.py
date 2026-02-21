@@ -1,7 +1,7 @@
 """
 Fetch the latest post / video / article URL for each source a user follows.
 Dispatches by source type: YouTube (channel → latest video), RSS (news/podcast → latest item),
-X via Nitter RSS, LinkedIn via profile-page scraping.
+X via Nitter RSS, LinkedIn via Apify (harvestapi/linkedin-profile-posts) or fallback scraping.
 """
 from __future__ import annotations
 
@@ -152,39 +152,96 @@ def _fetch_latest_from_x(profile_url: str) -> tuple[LatestItem | None, str | Non
     return (LatestItem(url=link, title=title, published_at=published), None)
 
 
+# Apify actor for LinkedIn profile posts (HarvestAPI - no cookies, pay per result)
+APIFY_LINKEDIN_ACTOR_ID = "harvestapi~linkedin-profile-posts"
+
+
+def _fetch_latest_from_linkedin_apify(profile_url: str, api_token: str) -> tuple[LatestItem | None, str | None]:
+    """Fetch latest LinkedIn post via Apify (harvestapi/linkedin-profile-posts). No cookies needed."""
+    url = (profile_url or "").strip()
+    if not url or "linkedin.com" not in url.lower():
+        return (None, "Invalid LinkedIn profile URL")
+    if _is_rss_url(url):
+        return (None, "Use RSS fetcher for feed URLs")
+
+    api_url = (
+        f"https://api.apify.com/v2/acts/{APIFY_LINKEDIN_ACTOR_ID}/run-sync-get-dataset-items"
+        f"?token={api_token}&timeout=120&limit=1"
+    )
+    payload = {"targetUrls": [url], "maxPosts": 1}
+    try:
+        with httpx.Client(timeout=130.0) as client:
+            r = client.post(api_url, json=payload)
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPStatusError as e:
+        body = e.response.text
+        if e.response.status_code == 401:
+            return (None, "Apify API token invalid or missing (set APIFY_API_TOKEN)")
+        if e.response.status_code in (400, 402, 408):
+            return (None, f"Apify: {body[:200]}" if body else str(e))
+        return (None, f"Apify returned {e.response.status_code}: {body[:200]}")
+    except Exception as e:
+        return (None, f"Apify request failed: {e}")
+
+    if not isinstance(data, list) or len(data) == 0:
+        return (None, "No posts returned for this profile")
+    item = data[0]
+    post_url = item.get("linkedinUrl") or item.get("url")
+    if not post_url:
+        return (None, "Apify result had no post URL")
+    title = (item.get("content") or "")[:300].strip() or None
+    published = None
+    posted = item.get("postedAt")
+    if isinstance(posted, dict) and posted.get("date"):
+        published = posted["date"]
+    elif isinstance(posted, str):
+        published = posted
+    return (LatestItem(url=post_url, title=title or None, published_at=published), None)
+
+
 def _fetch_latest_from_linkedin(profile_url: str) -> tuple[LatestItem | None, str | None]:
-    """Scrape LinkedIn profile/company page for latest post link (no auth)."""
+    """Fetch latest LinkedIn post: try Apify first if APIFY_API_TOKEN set, else RSS (if feed URL), else scrape."""
     url = (profile_url or "").strip()
     if not url:
         return (None, "LinkedIn URL is required")
+    # 1) Apify (no cookies, works for any profile)
+    try:
+        from app.config import settings
+        token = (getattr(settings, "apify_api_token", None) or "").strip()
+        if token:
+            latest, err = _fetch_latest_from_linkedin_apify(url, token)
+            if err is None:
+                return (latest, None)
+            # Apify failed; fall through to RSS/scrape
+    except Exception:
+        pass
+    # 2) If URL is an RSS feed, use it
+    if _is_rss_url(url):
+        return _fetch_latest_from_rss(url)
     if "linkedin.com" not in url.lower():
         return (None, "Invalid LinkedIn URL")
-
+    # 3) Fallback: scrape with optional cookies (if you added cookie storage later)
     try:
         from bs4 import BeautifulSoup
     except ImportError:
-        return (None, "beautifulsoup4 not installed")
+        return (None, "beautifulsoup4 not installed. Set APIFY_API_TOKEN for LinkedIn (recommended).")
 
+    headers = {"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"}
     try:
         with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-            r = client.get(
-                url,
-                headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"},
-            )
+            r = client.get(url, headers=headers)
             r.raise_for_status()
             html = r.text
     except httpx.HTTPStatusError as e:
-        return (None, f"LinkedIn returned {e.response.status_code}")
+        return (None, f"LinkedIn returned {e.response.status_code}. Set APIFY_API_TOKEN to use Apify instead.")
     except Exception as e:
         return (None, f"Failed to fetch LinkedIn: {e}")
 
-    # Login wall or auth redirect
-    if "authwall" in html.lower() or "login" in html.lower() and "sign in" in html.lower():
-        if "authwall" in html.lower() or html.count("login") > 3:
-            return (None, "LinkedIn profile requires login to view posts (use a public profile or RSS bridge)")
+    lower = html.lower()
+    if "authwall" in lower or ("sign in" in lower and "feed/update" not in lower and "activity:" not in lower):
+        return (None, "LinkedIn requires login. Set APIFY_API_TOKEN (Apify) to fetch without cookies.")
     soup = BeautifulSoup(html, "html.parser")
-
-    # Post links: feed/update/urn:li:activity:..., /posts/..., or href containing activity
     post_links: list[tuple[str, str | None]] = []
     for a in soup.find_all("a", href=True):
         href = (a.get("href") or "").strip()
@@ -193,19 +250,14 @@ def _fetch_latest_from_linkedin(profile_url: str) -> tuple[LatestItem | None, st
         if "linkedin.com" not in href:
             continue
         if "/feed/update/" in href or "/posts/" in href or "urn:li:activity" in href or "activity:" in href:
-            title = None
-            if a.get_text():
-                title = a.get_text().strip()[:200] or None
+            title = a.get_text().strip()[:200] if a.get_text() else None
             post_links.append((href, title))
-
-    # Deduplicate by URL, keep order
     seen: set[str] = set()
     for h, t in post_links:
         if h not in seen:
             seen.add(h)
             return (LatestItem(url=h, title=t, published_at=None), None)
-
-    return (None, "No post links found (profile may be private or page structure changed)")
+    return (None, "No post links found. Set APIFY_API_TOKEN to use Apify for LinkedIn.")
 
 
 def _fetch_latest_youtube(channel_url: str) -> tuple[LatestItem | None, str | None]:

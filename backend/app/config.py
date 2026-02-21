@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Nitter instance for X/Twitter RSS (e.g. https://nitter.net or https://nitter.mint.lgbt)
     nitter_base_url: str = "https://nitter.net"
 
+    # Apify (e.g. for LinkedIn profile posts). Get token at https://console.apify.com/account/integrations
+    apify_api_token: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
