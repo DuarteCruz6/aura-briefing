@@ -43,6 +43,12 @@ class PodcastGenerateRequest(BaseModel):
     model_id: str | None = None
 
 
+class PodcastFromUrlsRequest(BaseModel):
+    urls: list[str]
+    voice_id: str | None = None
+    model_id: str | None = None
+
+
 class SourceCreateRequest(BaseModel):
     type: str  # "youtube", "x", "linkedin", "news", "podcast"
     url: str
@@ -510,6 +516,76 @@ def delete_preference_topic(
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 
 
+def _normalize_voice_and_model(voice_id: str | None, model_id: str | None) -> tuple[str | None, str | None]:
+    """Treat placeholder 'string' as unset."""
+    v = voice_id if (voice_id and voice_id.strip().lower() != "string") else None
+    m = model_id if (model_id and model_id.strip().lower() != "string") else None
+    return v, m
+
+
+@app.post("/podcast/generate-from-urls")
+async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session = Depends(get_db)):
+    """
+    Generate podcast audio from multiple URLs: fetch/summarize content from each URL,
+    then turn the combined summary into speech via Gemini TTS. Returns a WAV file.
+    Requires GEMINI_API_KEY.
+    """
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; podcast generation unavailable",
+        )
+    urls = [u.strip() for u in (body.urls or []) if u and u.strip()]
+    if not urls:
+        raise HTTPException(status_code=400, detail="urls must be a non-empty list")
+
+    from app.models.podcast_generation import text_to_audio
+    from app.models.podcast_generation.tts_generator import (
+        DEFAULT_MODEL_ID,
+        DEFAULT_VOICE_ID,
+    )
+    from app.services.multi_url_summary import get_multi_url_summary
+
+    try:
+        summary = await asyncio.to_thread(get_multi_url_summary, urls, db)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    summary = (summary or "").strip()
+    if not summary or summary.startswith("No "):
+        raise HTTPException(
+            status_code=502,
+            detail=summary or "No summary could be generated from the given URLs.",
+        )
+
+    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
+    voice_id, model_id = _normalize_voice_and_model(body.voice_id, body.model_id)
+
+    try:
+        path_str, duration_seconds = await asyncio.to_thread(
+            text_to_audio,
+            summary,
+            output_path,
+            voice_id=voice_id or DEFAULT_VOICE_ID,
+            model_id=model_id or DEFAULT_MODEL_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    is_wav = path_str.lower().endswith(".wav")
+    return FileResponse(
+        path_str,
+        media_type="audio/wav" if is_wav else "audio/mpeg",
+        filename="podcast.wav" if is_wav else "podcast.mp3",
+        headers={
+            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+        },
+    )
+
+
 @app.post("/podcast/generate")
 async def generate_podcast(body: PodcastGenerateRequest):
     """
@@ -533,10 +609,7 @@ async def generate_podcast(body: PodcastGenerateRequest):
 
     PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
-
-    # Treat placeholder "string" (e.g. from OpenAPI/Swagger) as unset
-    voice_id = body.voice_id if (body.voice_id and body.voice_id.strip().lower() != "string") else None
-    model_id = body.model_id if (body.model_id and body.model_id.strip().lower() != "string") else None
+    voice_id, model_id = _normalize_voice_and_model(body.voice_id, body.model_id)
 
     try:
         path_str, duration_seconds = await asyncio.to_thread(

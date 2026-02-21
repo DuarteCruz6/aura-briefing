@@ -111,7 +111,7 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
       initial={{ y: 60 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="sticky bottom-0 z-40 glass-panel-strong border-t border-border/50 px-3 sm:px-6 py-3"
+      className="sticky bottom-16 sm:bottom-0 z-40 glass-panel-strong border-t border-border/50 px-3 sm:px-6 py-3"
     >
       <audio ref={audioRef} preload="metadata" />
       <div className="flex items-center gap-3 sm:gap-6">
