@@ -1,17 +1,8 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, ExternalLink, Youtube, Linkedin, Twitter, Heart } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Plus, Youtube, Linkedin, Twitter } from "lucide-react";
 import { toast } from "sonner";
 import { useFavourites } from "../hooks/useFavourites";
-
-interface LocalSource {
-  id: string;
-  type: string;
-  url: string;
-  addedAt: string;
-}
-
-const STORAGE_KEY = "briefcast_sources";
 
 const platforms = [
   { id: "youtube", label: "YouTube", icon: Youtube, color: "text-red-500" },
@@ -19,72 +10,35 @@ const platforms = [
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, color: "text-blue-500" },
 ] as const;
 
-function loadSources(): LocalSource[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveSources(sources: LocalSource[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
-}
-
 export const SourcesSection = () => {
   const [activePlatform, setActivePlatform] = useState<string>("youtube");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [sources, setSources] = useState<LocalSource[]>(loadSources);
-  const { addFavourite, removeFavourite, isFavourite } = useFavourites();
+  const { addFavourite, isFavourite } = useFavourites();
 
   const handlePlatformSwitch = (platformId: string) => {
     setActivePlatform(platformId);
     setSourceUrl("");
   };
 
-  useEffect(() => {
-    saveSources(sources);
-  }, [sources]);
-
   const handleAdd = () => {
     const trimmed = sourceUrl.trim();
     if (!trimmed) return;
-    if (sources.some((s) => s.url === trimmed)) {
-      toast.error("You're already following this source");
+    if (isFavourite(trimmed, "source")) {
+      toast.error("You've already added this source");
       return;
     }
-    setSources((prev) => [
-      { id: crypto.randomUUID(), type: activePlatform, url: trimmed, addedAt: new Date().toISOString() },
-      ...prev,
-    ]);
+    addFavourite({
+      id: trimmed,
+      type: "source",
+      label: trimmed.split("/").pop() || trimmed,
+      url: trimmed,
+      platform: activePlatform,
+    });
     setSourceUrl("");
-    toast.success("Source added!");
-  };
-
-  const handleDelete = (id: string) => {
-    setSources((prev) => prev.filter((s) => s.id !== id));
-    toast.success("Source removed");
-  };
-
-  const toggleFavSource = (source: LocalSource) => {
-    const favId = source.id;
-    if (isFavourite(favId, "source")) {
-      removeFavourite(favId, "source");
-      toast.success("Removed from favourites");
-    } else {
-      addFavourite({
-        id: favId,
-        type: "source",
-        label: source.url.split("/").pop() || source.url,
-        url: source.url,
-        platform: source.type,
-      });
-      toast.success("Added to favourites");
-    }
+    toast.success("Source added to favourites!");
   };
 
   const platformMeta = platforms.find((p) => p.id === activePlatform)!;
-  const filteredSources = sources.filter((s) => s.type === activePlatform);
 
   return (
     <motion.section
@@ -102,7 +56,6 @@ export const SourcesSection = () => {
         {platforms.map((p) => {
           const Icon = p.icon;
           const active = activePlatform === p.id;
-          const count = sources.filter((s) => s.type === p.id).length;
           return (
             <button
               key={p.id}
@@ -115,14 +68,13 @@ export const SourcesSection = () => {
             >
               <Icon className={`w-4 h-4 ${active ? p.color : ""}`} />
               {p.label}
-              {count > 0 && <span className="text-xs opacity-60">({count})</span>}
             </button>
           );
         })}
       </div>
 
       {/* Add source */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3">
         <input
           type="text"
           value={sourceUrl}
@@ -136,63 +88,9 @@ export const SourcesSection = () => {
           disabled={!sourceUrl.trim()}
           className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
-          <Plus className="w-4 h-4" /> Follow
+          <Plus className="w-4 h-4" /> Add
         </button>
       </div>
-
-      {/* Source list */}
-      {filteredSources.length === 0 ? (
-        <div className="glass-panel rounded-xl border border-border/20 p-8 text-center">
-          <platformMeta.icon className={`w-8 h-8 mx-auto mb-3 ${platformMeta.color} opacity-40`} />
-          <p className="text-sm text-muted-foreground">
-            No {platformMeta.label} sources yet. Paste a link above to start following.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <AnimatePresence>
-            {filteredSources.map((source) => {
-              const Icon = platformMeta.icon;
-              const faved = isFavourite(source.id, "source");
-              return (
-                <motion.div
-                  key={source.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="glass-panel rounded-xl border border-border/30 p-4 flex items-center gap-3 group hover:border-border/60 transition-all"
-                >
-                  <Icon className={`w-5 h-5 ${platformMeta.color} shrink-0`} />
-                  <p className="flex-1 text-sm font-medium text-foreground truncate">{source.url}</p>
-                  <button
-                    onClick={() => toggleFavSource(source)}
-                    className="transition-colors"
-                    title={faved ? "Remove from favourites" : "Add to favourites"}
-                  >
-                    <Heart
-                      className={`w-4 h-4 ${faved ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`}
-                    />
-                  </button>
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                  <button
-                    onClick={() => handleDelete(source.id)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-      )}
     </motion.section>
   );
 };
