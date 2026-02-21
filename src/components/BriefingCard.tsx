@@ -38,7 +38,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.1 }}
-      className={`glass-panel hover-lift cursor-pointer group relative overflow-hidden border-2 ${cc.ring} ${cc.glow}`}
+      className={`glass-panel cursor-pointer group relative overflow-hidden border-2 ${cc.ring} ${cc.glow} transition-all duration-300 hover:translate-y-[-2px] hover:shadow-xl`}
     >
       {/* Animated gradient on hover */}
       <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/3 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -100,24 +100,25 @@ export function BriefingCard({ title, description, duration, topics, confidence,
                 onPremiumClick?.();
               }
             }}
-            className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-primary/15 hover:text-primary"
+            className="w-11 h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:bg-primary/15 hover:text-primary"
             title={isPremium ? "Turn into video" : "Upgrade to Premium"}
           >
             <Clapperboard className="w-5 h-5" />
           </motion.button>
-          <button
+          <motion.button
             onClick={(e) => {
               e.stopPropagation();
               toggleBookmark({ title, description, duration, topics, confidence });
             }}
+            whileTap={{ scale: 0.85 }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
               bookmarked
                 ? "bg-primary/15 text-primary"
-                : "bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
+                : "bg-secondary/50 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:text-primary"
             }`}
           >
-            <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-primary" : ""}`} />
-          </button>
+            <Bookmark className={`w-4 h-4 transition-transform duration-200 ${bookmarked ? "fill-primary scale-110" : ""}`} />
+          </motion.button>
           <button
             onClick={(e) => {
               e.stopPropagation();
