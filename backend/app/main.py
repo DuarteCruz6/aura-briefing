@@ -960,6 +960,80 @@ def delete_preference_topic(
     return {"deleted": True}
 
 
+@app.post("/briefing/generate")
+async def generate_personal_briefing(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    max_per_topic: int = 1,
+    hl: str = "en-US",
+    gl: str = "US",
+):
+    """
+    Generate a personal briefing by combining:
+    1. Latest post from each account the user follows (/sources/latest)
+    2. One article per topic interest (/feed/by-topics with max_per_topic=1)
+    3. A ~3-minute summary of all that content (/summaries/multi-url logic)
+    Returns the briefing text and the URLs that were included.
+    """
+    from app.services.feed_by_topics import fetch_articles_by_topics
+    from app.services.latest_from_sources import fetch_latest_for_sources
+    from app.services.multi_url_summary import get_multi_url_summary
+
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; briefing generation unavailable",
+        )
+
+    urls: list[str] = []
+    sources_used: list[dict] = []
+    topics_used: list[dict] = []
+
+    # 1) Latest from followed accounts
+    sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
+    if sources:
+        results = fetch_latest_for_sources(sources)
+        for r in results:
+            latest = r.get("latest")
+            if latest and latest.get("url"):
+                u = latest["url"].strip()
+                if u and u not in urls:
+                    urls.append(u)
+                    sources_used.append({"url": u, "title": latest.get("title"), "source_type": r.get("source_type")})
+
+    # 2) One article per topic interest
+    topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
+    if topics:
+        per_topic = min(max(1, max_per_topic), 5)
+        topic_results = fetch_articles_by_topics(topics, max_per_topic=per_topic, hl=hl, gl=gl)
+        for tr in topic_results:
+            for art in (tr.get("articles") or [])[:per_topic]:
+                u = (art.get("url") or "").strip()
+                if u and u not in urls:
+                    urls.append(u)
+                    topics_used.append({"url": u, "title": art.get("title"), "topic": tr.get("topic")})
+
+    if not urls:
+        raise HTTPException(
+            status_code=400,
+            detail="No content to summarize. Add followed sources (POST /preferences/sources) and/or topic preferences (POST /preferences/topics).",
+        )
+
+    try:
+        summary = await asyncio.to_thread(get_multi_url_summary, urls, db)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    if not (summary or "").strip():
+        raise HTTPException(status_code=503, detail="No summary generated")
+
+    return {
+        "summary": summary,
+        "urls_count": len(urls),
+        "sources_used": sources_used,
+        "topics_used": topics_used,
+    }
+
+
 @app.get("/feed/by-topics")
 def get_feed_by_topics(
     user_id: int = Depends(get_current_user_id),
