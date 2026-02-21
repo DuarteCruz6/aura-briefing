@@ -1,12 +1,11 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { SourcesSection } from "../components/SourcesSection";
-import { ArrowLeft, Search, Sparkles, TrendingUp, Plus, X, Heart, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, Sparkles, TrendingUp, Plus, X, Heart } from "lucide-react";
 import { useFavourites } from "../hooks/useFavourites";
 import { toast } from "sonner";
-import { api, type TopicPreference } from "../lib/api";
 
 const topics = [
   { id: "ai", label: "AI & Technology", emoji: "🤖", desc: "Artificial intelligence, gadgets & innovation" },
@@ -34,124 +33,63 @@ const regions = [
 ];
 
 const trendingNow = [
-  { label: "GPT-5 Launch", emoji: "🤖", category: "AI" },
-  { label: "Fed Rate Decision", emoji: "📊", category: "Markets" },
-  { label: "EU Climate Summit", emoji: "🌿", category: "Climate" },
-  { label: "Mars Rover Discovery", emoji: "🔭", category: "Science" },
+  { id: "trend-gpt5", label: "GPT-5 Launch", emoji: "🤖", category: "AI" },
+  { id: "trend-fed", label: "Fed Rate Decision", emoji: "📊", category: "Markets" },
+  { id: "trend-climate", label: "EU Climate Summit", emoji: "🌿", category: "Climate" },
+  { id: "trend-mars", label: "Mars Rover Discovery", emoji: "🔭", category: "Science" },
 ];
-
-const topicIds = new Set(topics.map((t) => t.id));
 
 const Explore = () => {
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [topicPrefs, setTopicPrefs] = useState<TopicPreference[]>([]);
-  const [prefsLoading, setPrefsLoading] = useState(true);
+  const [topicSearch, setTopicSearch] = useState("");
+  const [regionSearch, setRegionSearch] = useState("");
+  const [customInterests, setCustomInterests] = useState<string[]>(() => {
+    const stored = localStorage.getItem("briefcast_custom_interests");
+    return stored ? JSON.parse(stored) : [];
+  });
   const { addFavourite, removeFavourite, isFavourite } = useFavourites();
 
-  const loadPrefs = useCallback(() => {
-    api.getPreferencesTopics().then(setTopicPrefs).catch(() => setTopicPrefs([])).finally(() => setPrefsLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadPrefs();
-  }, [loadPrefs]);
-
-  const topicPrefTopics = useMemo(() => new Set(topicPrefs.map((p) => p.topic)), [topicPrefs]);
-  const customInterests = useMemo(() => topicPrefs.filter((p) => !topicIds.has(p.topic)).map((p) => p.topic), [topicPrefs]);
-  const isTopicFaved = useCallback((topicId: string) => topicPrefTopics.has(topicId), [topicPrefTopics]);
-
-  const toggleTopicFav = (topic: { id: string; label: string }) => {
-    if (isTopicFaved(topic.id)) {
-      const pref = topicPrefs.find((p) => p.topic === topic.id);
-      if (pref) {
-        api.deletePreferencesTopic(pref.id).then(() => {
-          setTopicPrefs((prev) => prev.filter((p) => p.id !== pref.id));
-          toast.success(`Removed "${topic.label}" from favourites`);
-        }).catch(() => toast.error("Failed to remove"));
-      }
-    } else {
-      api.addPreferencesTopic(topic.id).then((created) => {
-        setTopicPrefs((prev) => [...prev, created]);
-        toast.success(`Added "${topic.label}" to favourites`);
-      }).catch((e) => toast.error(e instanceof Error ? e.message : "Failed to add"));
-    }
-  };
-
   const toggleFav = (item: { id: string; type: "topic" | "region" | "interest" | "source"; label: string; emoji?: string; desc?: string; url?: string; platform?: string }) => {
-    if (item.type === "topic") {
-      toggleTopicFav({ id: item.id, label: item.label });
-      return;
-    }
-    if (item.type === "region") {
-      if (isFavourite(item.id, "region")) {
-        removeFavourite(item.id, "region");
-        toast.success(`Removed "${item.label}" from favourites`);
-      } else {
-        addFavourite(item);
-        toast.success(`Added "${item.label}" to favourites`);
-      }
-      return;
-    }
-    if (item.type === "interest") {
-      const pref = topicPrefs.find((p) => p.topic === item.id);
-      if (pref) {
-        api.deletePreferencesTopic(pref.id).then(() => {
-          setTopicPrefs((prev) => prev.filter((p) => p.id !== pref.id));
-          toast.success(`Removed "${item.label}" from favourites`);
-        }).catch(() => toast.error("Failed to remove"));
-      }
-      return;
-    }
-    if (item.type === "source") {
-      if (isFavourite(item.id, "source")) {
-        removeFavourite(item.id, "source");
-        toast.success(`Removed "${item.label}" from favourites`);
-      } else {
-        addFavourite(item);
-        toast.success(`Added "${item.label}" to favourites`);
-      }
+    if (isFavourite(item.id, item.type)) {
+      removeFavourite(item.id, item.type);
+      toast.success(`Removed "${item.label}" from favourites`);
+    } else {
+      addFavourite(item);
+      toast.success(`Added "${item.label}" to favourites`);
     }
   };
 
-  const addInterest = () => {
-    const trimmed = search.trim();
-    if (!trimmed || topicPrefTopics.has(trimmed)) return;
-    api.addPreferencesTopic(trimmed).then((created) => {
-      setTopicPrefs((prev) => [...prev, created]);
-      setSearch("");
-      toast.success("Interest added!");
-    }).catch((e) => toast.error(e instanceof Error ? e.message : "Failed to add"));
+  const addInterest = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || customInterests.includes(trimmed)) return;
+    const updated = [...customInterests, trimmed];
+    setCustomInterests(updated);
+    localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
   };
 
   const removeInterest = (interest: string) => {
-    const pref = topicPrefs.find((p) => p.topic === interest);
-    if (pref) {
-      api.deletePreferencesTopic(pref.id).then(() => {
-        setTopicPrefs((prev) => prev.filter((p) => p.id !== pref.id));
-        toast.success("Interest removed");
-      }).catch(() => toast.error("Failed to remove"));
-    }
+    const updated = customInterests.filter((i) => i !== interest);
+    setCustomInterests(updated);
+    localStorage.setItem("briefcast_custom_interests", JSON.stringify(updated));
   };
 
   const filteredTopics = useMemo(
-    () => topics.filter((t) => !isTopicFaved(t.id) && (t.label.toLowerCase().includes(search.toLowerCase()) || t.desc.toLowerCase().includes(search.toLowerCase()))),
-    [search, isTopicFaved]
+    () => topics.filter((t) => !isFavourite(t.id, "topic") && (t.label.toLowerCase().includes(topicSearch.toLowerCase()) || t.desc.toLowerCase().includes(topicSearch.toLowerCase()))),
+    [topicSearch, isFavourite]
   );
 
   const filteredRegions = useMemo(
-    () => regions.filter((r) => !isFavourite(r.id, "region") && (r.label.toLowerCase().includes(search.toLowerCase()) || r.desc.toLowerCase().includes(search.toLowerCase()))),
-    [search, isFavourite]
+    () => regions.filter((r) => !isFavourite(r.id, "region") && (r.label.toLowerCase().includes(regionSearch.toLowerCase()) || r.desc.toLowerCase().includes(regionSearch.toLowerCase()))),
+    [regionSearch, isFavourite]
   );
 
   const filteredCustom = useMemo(
-    () => customInterests.filter((c) => c.toLowerCase().includes(search.toLowerCase())),
-    [search, customInterests]
+    () => customInterests.filter((c) => !isFavourite(c, "interest")),
+    [customInterests, isFavourite]
   );
 
   const showTopics = filteredTopics.length > 0;
   const showRegions = filteredRegions.length > 0;
-  const showCustom = filteredCustom.length > 0 || !search;
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
@@ -177,32 +115,6 @@ const Explore = () => {
             </p>
           </motion.div>
 
-          {/* Search */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="relative mb-8">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && search.trim() && !topics.some(t => t.label.toLowerCase() === search.trim().toLowerCase()) && !regions.some(r => r.label.toLowerCase() === search.trim().toLowerCase())) {
-                  addInterest();
-                }
-              }}
-              placeholder="Search or add a custom interest..."
-              className="w-full h-12 pl-12 pr-24 rounded-xl bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
-            />
-            {search.trim() && !customInterests.includes(search.trim()) && (
-              <button
-                onClick={() => { addInterest(); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add
-              </button>
-            )}
-          </motion.div>
-
           {/* Trending Now */}
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-10">
             <div className="flex items-center gap-2 mb-4">
@@ -210,135 +122,155 @@ const Explore = () => {
               <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Trending Now</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              {trendingNow.map((item, i) => (
-                <motion.button
-                  key={item.label}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.2 + i * 0.05 }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group"
-                >
-                  <span className="text-base">{item.emoji}</span>
-                  <span className="text-sm font-medium text-foreground">{item.label}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">{item.category}</span>
-                </motion.button>
-              ))}
+              {trendingNow.map((item, i) => {
+                const faved = isFavourite(item.id, "topic");
+                if (faved) return null;
+                return (
+                  <motion.button
+                    key={item.label}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2 + i * 0.05 }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                    onClick={() => toggleFav({ id: item.id, type: "topic", label: item.label, emoji: item.emoji })}
+                  >
+                    <span className="text-base">{item.emoji}</span>
+                    <span className="text-sm font-medium text-foreground">{item.label}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">{item.category}</span>
+                    <Heart className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.section>
 
-          {/* Selection stats */}
-
           {/* Custom Interests */}
-          {showCustom && (
-            <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-12">
-              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">
-                Your Custom Interests
-              </h2>
-              {filteredCustom.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {filteredCustom.map((interest, i) => {
-                    const faved = isFavourite(interest, "interest");
-                    return (
-                      <motion.div
-                        key={interest}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.03 }}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-primary/30 bg-primary/5 group"
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-12">
+            <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">
+              Your Custom Interests
+            </h2>
+            {filteredCustom.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {filteredCustom.map((interest, i) => {
+                  const faved = isFavourite(interest, "interest");
+                  return (
+                    <motion.div
+                      key={interest}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-primary/30 bg-primary/5 group"
+                    >
+                      <span className="text-base">🎯</span>
+                      <span className="text-sm font-medium text-foreground">{interest}</span>
+                      <button
+                        onClick={() => toggleFav({ id: interest, type: "interest", label: interest, emoji: "🎯" })}
+                        className="w-5 h-5 rounded-full flex items-center justify-center transition-colors"
+                        title={faved ? "Remove from favourites" : "Add to favourites"}
                       >
-                        <span className="text-base">🎯</span>
-                        <span className="text-sm font-medium text-foreground">{interest}</span>
-                        <button
-                          onClick={() => toggleFav({ id: interest, type: "interest", label: interest, emoji: "🎯" })}
-                          className="w-5 h-5 rounded-full flex items-center justify-center transition-colors"
-                          title={faved ? "Remove from favourites" : "Add to favourites"}
-                        >
-                          <Heart className={`w-3.5 h-3.5 ${faved ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
-                        </button>
-                        <button
-                          onClick={() => removeInterest(interest)}
-                          className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No custom interests yet. Add keywords like "electric vehicles", "NBA", or "blockchain" to personalize your briefings.
-                </p>
-              )}
-            </motion.section>
-          )}
+                        <Heart className={`w-3.5 h-3.5 ${faved ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                      </button>
+                      <button
+                        onClick={() => removeInterest(interest)}
+                        className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No custom interests yet. Add keywords like "electric vehicles", "NBA", or "blockchain" to personalize your briefings.
+              </p>
+            )}
+          </motion.section>
 
           {/* Follow Sources */}
           <SourcesSection />
 
           {/* Topics */}
-          {showTopics && (
-            <section className="mb-12">
-              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">Topics</h2>
+          <section className="mb-12">
+            <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Topics</h2>
+            <div className="relative mb-5">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={topicSearch}
+                onChange={(e) => setTopicSearch(e.target.value)}
+                placeholder="Search topics..."
+                className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
+              />
+            </div>
+            {showTopics ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filteredTopics.map((t, i) => (
-                    <motion.div
-                      key={t.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                      className="glass-panel relative rounded-xl p-4 text-left transition-all border group border-border/30 hover:border-border/60 hover:bg-secondary/30"
+                {filteredTopics.map((t, i) => (
+                  <motion.div
+                    key={t.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="glass-panel relative rounded-xl p-4 text-left transition-all border group border-border/30 hover:border-border/60 hover:bg-secondary/30"
+                  >
+                    <span className="text-2xl block mb-2">{t.emoji}</span>
+                    <p className="font-medium text-sm text-foreground">{t.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
+                    <button
+                      onClick={() => toggleFav({ id: t.id, type: "topic", label: t.label, emoji: t.emoji, desc: t.desc })}
+                      className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                      title="Add to favourites"
                     >
-                      <span className="text-2xl block mb-2">{t.emoji}</span>
-                      <p className="font-medium text-sm text-foreground">{t.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
-                      <button
-                        onClick={() => toggleFav({ id: t.id, type: "topic", label: t.label, emoji: t.emoji, desc: t.desc })}
-                        className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                        title="Add to favourites"
-                      >
-                        <Heart className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
-                      </button>
-                    </motion.div>
-                  ))}
+                      <Heart className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
+                    </button>
+                  </motion.div>
+                ))}
               </div>
-            </section>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No matching topics found.</p>
+            )}
+          </section>
 
           {/* Regions */}
-          {showRegions && (
-            <section className="mb-12">
-              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">Regions</h2>
+          <section className="mb-12">
+            <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Regions</h2>
+            <div className="relative mb-5">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={regionSearch}
+                onChange={(e) => setRegionSearch(e.target.value)}
+                placeholder="Search regions..."
+                className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
+              />
+            </div>
+            {showRegions ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {filteredRegions.map((r, i) => (
-                    <motion.div
-                      key={r.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                      className="glass-panel relative rounded-xl p-4 text-left transition-all border group border-border/30 hover:border-border/60 hover:bg-secondary/30"
+                  <motion.div
+                    key={r.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="glass-panel relative rounded-xl p-4 text-left transition-all border group border-border/30 hover:border-border/60 hover:bg-secondary/30"
+                  >
+                    <span className="text-2xl block mb-2">{r.emoji}</span>
+                    <p className="font-medium text-sm text-foreground">{r.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{r.desc}</p>
+                    <button
+                      onClick={() => toggleFav({ id: r.id, type: "region", label: r.label, emoji: r.emoji, desc: r.desc })}
+                      className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                      title="Add to favourites"
                     >
-                      <span className="text-2xl block mb-2">{r.emoji}</span>
-                      <p className="font-medium text-sm text-foreground">{r.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{r.desc}</p>
-                      <button
-                        onClick={() => toggleFav({ id: r.id, type: "region", label: r.label, emoji: r.emoji, desc: r.desc })}
-                        className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                        title="Add to favourites"
-                      >
-                        <Heart className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
-                      </button>
-                    </motion.div>
-                  ))}
+                      <Heart className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
+                    </button>
+                  </motion.div>
+                ))}
               </div>
-            </section>
-          )}
-
-          {!showTopics && !showRegions && filteredCustom.length === 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel p-12 text-center">
-              <p className="text-muted-foreground">No results for "{search}"</p>
-            </motion.div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No matching regions found.</p>
+            )}
+          </section>
         </div>
       </main>
     </div>
