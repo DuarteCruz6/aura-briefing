@@ -13,7 +13,7 @@ from starlette.staticfiles import StaticFiles
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -22,8 +22,10 @@ from app.models.database import (
     Bookmark,
     ExtractedSummary,
     FetchFrequency,
+    Run,
     Source,
     SourceType,
+    Summary,
     User,
     UserSetting,
     UserTopicPreference,
@@ -53,6 +55,15 @@ class PodcastFromUrlsRequest(BaseModel):
     urls: list[str]
     voice_id: str | None = None
     model_id: str | None = None
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
 
 
 class VideoGenerateRequest(BaseModel):
@@ -809,6 +820,96 @@ def get_briefings(
             "error": r.get("error"),
         })
     return {"briefings": briefings}
+
+
+@app.post("/chat")
+def post_chat(
+    body: ChatRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    AI assistant chat using Gemini. Send conversation history; returns the assistant reply.
+    Optional context: recent briefings from the user's sources are injected so the assistant
+    can answer questions about "today's stories".
+    """
+    if not getattr(settings, "gemini_api_key", None) or not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY is not set; AI assistant unavailable",
+        )
+    if not body.messages:
+        raise HTTPException(status_code=400, detail="messages is required")
+    last = body.messages[-1]
+    if last.role != "user":
+        raise HTTPException(status_code=400, detail="Last message must be from the user")
+
+    # Load user (name)
+    user = db.query(User).filter(User.id == user_id).first()
+    user_name = (user.name or "").strip() or None if user else None
+
+    # Load user's topic interests
+    topic_prefs = (
+        db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()
+    )
+    user_topics = [p.topic for p in topic_prefs if p.topic]
+
+    # Load user's sources (people/channels they follow)
+    sources = (
+        db.query(Source)
+        .filter(Source.user_id == user_id)
+        .order_by(Source.created_at.desc())
+        .all()
+    )
+    user_sources: list[dict] = [
+        {"name": s.name or s.url, "url": s.url, "type": s.type.value}
+        for s in sources
+    ]
+
+    # Newest briefcast: most recent Run that has a Summary (content stored in DB)
+    latest_briefing_summary: str | None = None
+    runs_with_summary = (
+        db.query(Run)
+        .options(joinedload(Run.summary))
+        .filter(Run.user_id == user_id)
+        .order_by(Run.started_at.desc())
+        .limit(20)
+        .all()
+    )
+    for run in runs_with_summary:
+        if run.summary and (run.summary.content or "").strip():
+            latest_briefing_summary = run.summary.content.strip()
+            break
+
+    # Recent briefings from sources (titles) for extra context
+    context_briefings: list[dict] = []
+    if sources:
+        from app.services.latest_from_sources import fetch_latest_for_sources
+
+        results = fetch_latest_for_sources(sources)
+        for r in results:
+            latest = r.get("latest") or {}
+            context_briefings.append({
+                "title": latest.get("title") or "Latest update",
+                "error": r.get("error"),
+            })
+
+    messages = [{"role": m.role, "content": m.content or ""} for m in body.messages]
+    try:
+        from app.services.assistant_chat import chat as assistant_chat
+
+        content = assistant_chat(
+            messages,
+            context_briefings=context_briefings,
+            user_name=user_name,
+            user_topics=user_topics,
+            user_sources=user_sources,
+            latest_briefing_summary=latest_briefing_summary,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"content": content}
 
 
 # Platform name from API -> SourceType

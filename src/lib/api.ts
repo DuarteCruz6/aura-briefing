@@ -200,6 +200,22 @@ export const api = {
     return res.json();
   },
 
+  /**
+   * AI assistant chat (Gemini). Send full conversation history; returns assistant reply.
+   */
+  async chat(messages: { role: "user" | "assistant"; content: string }[]): Promise<{ content: string }> {
+    const res = await fetch(url("/chat"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ messages }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Chat failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
   /** List all followed sources. */
   async getSources(): Promise<SourceEntry[]> {
     const res = await fetch(url("/sources"), { headers: authHeaders() });
