@@ -301,18 +301,57 @@ async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Dep
 @app.post("/summaries/multi-url")
 async def post_multi_url_summary(body: MultiUrlRequest, db: Session = Depends(get_db)):
     """
-    Get or extract content for each URL (same as get-or-extract per URL), then generate
-    a single ~3-minute text summary of all content via Gemini.
+    Get or extract content for each URL, generate a single ~3-minute text summary via Gemini,
+    then convert it to podcast audio (Gemini TTS) and return the WAV file.
+    Requires GEMINI_API_KEY.
     """
+    from app.models.podcast_generation import text_to_audio
+    from app.models.podcast_generation.tts_generator import (
+        DEFAULT_MODEL_ID,
+        DEFAULT_VOICE_ID,
+    )
     from app.services.multi_url_summary import get_multi_url_summary
 
     if not body.urls:
         raise HTTPException(status_code=400, detail="urls must be a non-empty list")
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; summary + podcast generation unavailable",
+        )
+
     try:
         summary = await asyncio.to_thread(get_multi_url_summary, body.urls, db)
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
-    return {"summary": summary}
+
+    if not (summary or "").strip():
+        raise HTTPException(status_code=503, detail="No summary generated")
+
+    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
+
+    try:
+        path_str, duration_seconds = await asyncio.to_thread(
+            text_to_audio,
+            summary,
+            output_path,
+            voice_id=DEFAULT_VOICE_ID,
+            model_id=DEFAULT_MODEL_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return FileResponse(
+        path_str,
+        media_type="audio/wav",
+        filename="podcast.wav",
+        headers={
+            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+        },
+    )
 
 
 ## ─── User CRUD ─────────────────────────────────────────────────────────────
