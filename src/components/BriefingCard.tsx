@@ -1,9 +1,7 @@
-import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown, Video, Sparkles } from "lucide-react";
+import { Play, Clock, TrendingUp, Globe, Cpu, MapPin, Bookmark, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useBookmarks } from "@/hooks/useBookmarks";
-import { usePremium } from "@/hooks/usePremium";
-import { toast } from "@/hooks/use-toast";
 
 interface BriefingCardProps {
   title: string;
@@ -18,22 +16,8 @@ interface BriefingCardProps {
 
 export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
-  const { isPremium } = usePremium();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
-  const [generating, setGenerating] = useState(false);
-
-  const handleGenerateVideo = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
-      toast({
-        title: "🎬 Video Ready!",
-        description: `Your video briefing for "${title}" has been generated.`,
-      });
-    }, 3000);
-  };
 
   return (
     <motion.div
@@ -43,6 +27,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
       className="glass-panel hover-lift cursor-pointer group"
     >
       <div className="flex items-center gap-4 p-5" onClick={() => setExpanded(!expanded)}>
+        {/* Left: icon + info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
@@ -55,18 +40,30 @@ export function BriefingCard({ title, description, duration, topics, confidence,
           </div>
 
           <div className="flex items-center gap-4 text-xs text-muted-foreground ml-[52px]">
-            <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{duration}</span>
-            <span className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" />{confidence}% confidence</span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {duration}
+            </span>
+            <span className="flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5" />
+              {confidence}% confidence
+            </span>
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} />
           </div>
 
           <div className="flex flex-wrap gap-1.5 mt-3 ml-[52px]">
             {topics.map((topic) => (
-              <span key={topic} className="px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium">{topic}</span>
+              <span
+                key={topic}
+                className="px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium"
+              >
+                {topic}
+              </span>
             ))}
           </div>
         </div>
 
+        {/* Right: bookmark + play */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={(e) => {
@@ -74,7 +71,9 @@ export function BriefingCard({ title, description, duration, topics, confidence,
               toggleBookmark({ title, description, duration, topics, confidence });
             }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              bookmarked ? "bg-primary/15 text-primary" : "bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
+              bookmarked
+                ? "bg-primary/15 text-primary"
+                : "bg-secondary/50 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
             }`}
           >
             <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-primary" : ""}`} />
@@ -88,6 +87,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
         </div>
       </div>
 
+      {/* Expandable summary */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -99,25 +99,8 @@ export function BriefingCard({ title, description, duration, topics, confidence,
           >
             <div className="px-5 pb-5 pt-0 ml-[52px] border-t border-border/50">
               <p className="text-sm text-muted-foreground leading-relaxed pt-4">
-                {summary || `A comprehensive ${duration} briefing covering ${topics.join(", ")}.`}
+                {summary || `A comprehensive ${duration} briefing covering ${topics.join(", ")}. Tap play to listen to the full audio summary powered by AI analysis of today's most relevant developments.`}
               </p>
-
-              {isPremium && (
-                <motion.button
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                  onClick={handleGenerateVideo}
-                  disabled={generating}
-                  className="mt-4 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary/15 to-accent/10 border border-primary/20 text-primary text-sm font-medium hover:from-primary/25 hover:to-accent/20 transition-all disabled:opacity-60"
-                >
-                  {generating ? (
-                    <><Sparkles className="w-4 h-4 animate-spin" />Generating video…</>
-                  ) : (
-                    <><Video className="w-4 h-4" />Turn into Video</>
-                  )}
-                </motion.button>
-              )}
             </div>
           </motion.div>
         )}
@@ -133,7 +116,7 @@ export const briefings = [
     duration: "7 min",
     topics: ["Markets", "AI", "Climate", "Politics"],
     confidence: 94,
-    summary: "Markets opened higher as tech stocks rallied on strong earnings. AI regulation talks continue in Brussels with new proposals expected this week. Climate summit delegates reached a preliminary agreement on carbon credits.",
+    summary: "Markets opened higher as tech stocks rallied on strong earnings. AI regulation talks continue in Brussels with new proposals expected this week. Climate summit delegates reached a preliminary agreement on carbon credits. Key political developments include upcoming policy votes on infrastructure spending.",
     icon: <TrendingUp className="w-5 h-5" />,
   },
   {
@@ -142,7 +125,7 @@ export const briefings = [
     duration: "5 min",
     topics: ["AI Models", "Funding", "Product Launches"],
     confidence: 97,
-    summary: "New frontier AI models announced with improved reasoning capabilities. Several startups secured Series B funding rounds totaling $2.3B.",
+    summary: "New frontier AI models announced with improved reasoning capabilities. Several startups secured Series B funding rounds totaling $2.3B. Major product launches this week include updates to developer tools and a new consumer AI assistant.",
     icon: <Cpu className="w-5 h-5" />,
   },
   {
@@ -151,7 +134,7 @@ export const briefings = [
     duration: "8 min",
     topics: ["Diplomacy", "Conflicts", "Trade", "Elections"],
     confidence: 91,
-    summary: "Diplomatic talks between key nations show progress on trade agreements. Ongoing conflicts see shifts in humanitarian corridors.",
+    summary: "Diplomatic talks between key nations show progress on trade agreements. Ongoing conflicts see shifts in humanitarian corridors. New trade tariffs proposed by multiple blocs. Upcoming elections in three countries could reshape regional alliances.",
     icon: <Globe className="w-5 h-5" />,
   },
   {
@@ -160,7 +143,7 @@ export const briefings = [
     duration: "4 min",
     topics: ["Economy", "Housing", "Tech Hub", "Sports"],
     confidence: 89,
-    summary: "Irish economy shows resilient growth figures despite global headwinds. New housing development plans announced for Dublin and Cork.",
+    summary: "Irish economy shows resilient growth figures despite global headwinds. New housing development plans announced for Dublin and Cork. Tech hub expansion continues with major employers adding roles. Weekend sports roundup covers GAA and rugby highlights.",
     icon: <MapPin className="w-5 h-5" />,
   },
 ];

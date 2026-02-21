@@ -1,7 +1,5 @@
-import { Crown, Video, Sparkles, Check, X, Zap } from "lucide-react";
+import { Crown, Video, Sparkles, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePremium } from "@/hooks/usePremium";
-import { toast } from "@/hooks/use-toast";
 
 interface PremiumBannerProps {
   showPopup: boolean;
@@ -9,26 +7,41 @@ interface PremiumBannerProps {
 }
 
 export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) {
-  const { isPremium, trialDaysLeft, startTrial } = usePremium();
+  return (
+    <>
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
+        className="glass-panel p-6 mt-8 relative overflow-hidden cursor-pointer group"
+        onClick={() => onPopupChange(true)}
+      >
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-primary/10 pointer-events-none group-hover:from-primary/20 group-hover:to-primary/20 transition-all duration-500" />
+        
+        <div className="relative flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+            <Video className="w-7 h-7 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+              <span className="text-xs font-bold text-primary uppercase tracking-wider">New — AI Video</span>
+            </div>
+            <h3 className="font-display text-lg font-bold text-foreground">Turn Your Briefing Into a Video</h3>
+            <p className="text-sm text-muted-foreground">One tap. Cinematic visuals, charts & motion graphics — generated in seconds.</p>
+          </div>
+          <motion.div
+            animate={{ x: [0, 6, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="text-primary font-semibold text-sm whitespace-nowrap"
+          >
+            Try Free →
+          </motion.div>
+        </div>
+      </motion.section>
 
-  const handleStartTrial = () => {
-    startTrial();
-    onPopupChange(false);
-    toast({
-      title: "🎉 Premium Activated!",
-      description: "Your 7-day free trial has started. Enjoy AI video briefings!",
-    });
-  };
-
-  const handleBuyNow = () => {
-    toast({
-      title: "Coming Soon",
-      description: "Payment integration will be available soon.",
-    });
-  };
-
-  function renderPopup() {
-    return (
+      {/* Premium Popup */}
       <AnimatePresence>
         {showPopup && (
           <motion.div
@@ -57,14 +70,8 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
                 <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mx-auto mb-4">
                   <Crown className="w-8 h-8 text-primary" />
                 </div>
-                <h2 className="font-display text-2xl font-bold text-foreground mb-1">
-                  {isPremium ? "You're Premium!" : "Go Premium"}
-                </h2>
-                <p className="text-muted-foreground text-sm">
-                  {isPremium
-                    ? `${trialDaysLeft} days left in your trial`
-                    : "Unlock AI video briefings & more"}
-                </p>
+                <h2 className="font-display text-2xl font-bold text-foreground mb-1">Go Premium</h2>
+                <p className="text-muted-foreground text-sm">Unlock AI video briefings & more</p>
               </div>
 
               <div className="space-y-3 mb-6">
@@ -92,97 +99,14 @@ export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) 
                 </div>
               </div>
 
-              {isPremium ? (
-                <button
-                  onClick={handleBuyNow}
-                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Zap className="w-4 h-4" />
-                  Buy Now — €10/month
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <button
-                    onClick={handleStartTrial}
-                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
-                  >
-                    Start 7-Day Free Trial
-                  </button>
-                  <button
-                    onClick={handleBuyNow}
-                    className="w-full py-3 rounded-xl border border-border text-foreground font-semibold text-sm hover:bg-secondary/50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Zap className="w-4 h-4" />
-                    Buy Now — €10/month
-                  </button>
-                </div>
-              )}
+              <button className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
+                Start 7-Day Free Trial
+              </button>
               <p className="text-xs text-muted-foreground text-center mt-3">Cancel anytime. No charge for 7 days.</p>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    );
-  }
-
-  if (isPremium) {
-    return (
-      <>
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="glass-panel p-4 mt-8 relative overflow-hidden"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
-              <Crown className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-foreground">Premium Active</p>
-              <p className="text-xs text-muted-foreground">
-                {trialDaysLeft !== null ? `${trialDaysLeft} days left in trial` : "Full access"}
-              </p>
-            </div>
-          </div>
-        </motion.section>
-        {renderPopup()}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.5 }}
-        className="glass-panel p-6 mt-8 relative overflow-hidden cursor-pointer group"
-        onClick={() => onPopupChange(true)}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-primary/10 pointer-events-none group-hover:from-primary/20 group-hover:to-primary/20 transition-all duration-500" />
-        <div className="relative flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-            <Video className="w-7 h-7 text-primary" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-              <span className="text-xs font-bold text-primary uppercase tracking-wider">New — AI Video</span>
-            </div>
-            <h3 className="font-display text-lg font-bold text-foreground">Turn Your Briefing Into a Video</h3>
-            <p className="text-sm text-muted-foreground">One tap. Cinematic visuals, charts & motion graphics — generated in seconds.</p>
-          </div>
-          <motion.div
-            animate={{ x: [0, 6, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="text-primary font-semibold text-sm whitespace-nowrap"
-          >
-            Try Free →
-          </motion.div>
-        </div>
-      </motion.section>
-      {renderPopup()}
     </>
   );
 }
