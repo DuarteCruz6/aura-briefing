@@ -13,7 +13,7 @@ from starlette.staticfiles import StaticFiles
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -22,8 +22,10 @@ from app.models.database import (
     Bookmark,
     ExtractedSummary,
     FetchFrequency,
+    Run,
     Source,
     SourceType,
+    Summary,
     User,
     UserSetting,
     UserTopicPreference,
@@ -842,13 +844,44 @@ def post_chat(
     if last.role != "user":
         raise HTTPException(status_code=400, detail="Last message must be from the user")
 
-    # Load user's briefings as context
+    # Load user (name)
+    user = db.query(User).filter(User.id == user_id).first()
+    user_name = (user.name or "").strip() or None if user else None
+
+    # Load user's topic interests
+    topic_prefs = (
+        db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()
+    )
+    user_topics = [p.topic for p in topic_prefs if p.topic]
+
+    # Load user's sources (people/channels they follow)
     sources = (
         db.query(Source)
         .filter(Source.user_id == user_id)
         .order_by(Source.created_at.desc())
         .all()
     )
+    user_sources: list[dict] = [
+        {"name": s.name or s.url, "url": s.url, "type": s.type.value}
+        for s in sources
+    ]
+
+    # Newest briefcast: most recent Run that has a Summary (content stored in DB)
+    latest_briefing_summary: str | None = None
+    runs_with_summary = (
+        db.query(Run)
+        .options(joinedload(Run.summary))
+        .filter(Run.user_id == user_id)
+        .order_by(Run.started_at.desc())
+        .limit(20)
+        .all()
+    )
+    for run in runs_with_summary:
+        if run.summary and (run.summary.content or "").strip():
+            latest_briefing_summary = run.summary.content.strip()
+            break
+
+    # Recent briefings from sources (titles) for extra context
     context_briefings: list[dict] = []
     if sources:
         from app.services.latest_from_sources import fetch_latest_for_sources
@@ -868,6 +901,10 @@ def post_chat(
         content = assistant_chat(
             messages,
             context_briefings=context_briefings,
+            user_name=user_name,
+            user_topics=user_topics,
+            user_sources=user_sources,
+            latest_briefing_summary=latest_briefing_summary,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
