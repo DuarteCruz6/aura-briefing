@@ -73,18 +73,19 @@ const Index = () => {
     source: <Globe className="w-5 h-5" />,
   };
   const themeIcons = [<Headphones className="w-5 h-5" />, <Radio className="w-5 h-5" />, <Mic className="w-5 h-5" />, <Cpu className="w-5 h-5" />];
+  const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
 
-  const favouriteBriefings = favourites.map((fav, i) => ({
-    id: `fav-${fav.id}`,
-    title: `${fav.label} Briefing`,
-    description: fav.desc || `Latest updates on ${fav.label}`,
-    duration: `${5 + (i % 4) * 2} min`,
-    topics: [fav.type, fav.label],
-    confidence: 75 + (i % 4) * 7,
-    summary: `Your personalized podcast briefing covering the latest developments in ${fav.label}.`,
-    icon: themeIcons[i % themeIcons.length],
+  const favouriteBriefings = hasFavourites ? [{
+    id: "combined-briefing",
+    title: `Your ${freqLabel} Briefing`,
+    description: `Covering ${favourites.map(f => f.label).join(", ")}`,
+    duration: `${5 + favourites.length * 2} min`,
+    topics: favourites.map(f => f.label).slice(0, 4),
+    confidence: 85,
+    summary: `Your personalized podcast briefing covering the latest developments in ${favourites.map(f => f.label).join(", ")}.`,
+    icon: <Headphones className="w-5 h-5" />,
     audioUrl: "/audio/podcast.wav",
-  }));
+  }] : [];
 
   // Merge API briefings with favourite-generated briefings
   const sourceIconMap: Record<string, React.ReactNode> = {
@@ -108,7 +109,7 @@ const Index = () => {
 
   const filteredBriefings = [...favouriteBriefings, ...apiBriefingCards];
 
-  const freqLabel = frequency === "weekly" ? "Weekly" : frequency === "monthly" ? "Monthly" : "Daily";
+
 
   const handlePlay = useCallback((audioUrl: string, title: string) => {
     setCurrentTrack({ src: audioUrl, title });
