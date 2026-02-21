@@ -8,6 +8,12 @@ export function AudioPlayer() {
   const [speed, setSpeed] = useState(1);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
+  const chapters = [
+    { label: "Headlines", position: 15 },
+    { label: "Markets", position: 40 },
+    { label: "Tech", position: 65 },
+    { label: "Weather", position: 85 },
+  ];
   const cycleSpeed = () => {
     const idx = speeds.indexOf(speed);
     setSpeed(speeds[(idx + 1) % speeds.length]);
