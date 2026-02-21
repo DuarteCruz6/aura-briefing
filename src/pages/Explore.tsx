@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react"; 
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { AppSidebar } from "@/components/AppSidebar";
+import { AppSidebar } from "../components/AppSidebar";
 import { ArrowLeft, Check, Search, Sparkles, TrendingUp, Zap } from "lucide-react";
 
 const topics = [

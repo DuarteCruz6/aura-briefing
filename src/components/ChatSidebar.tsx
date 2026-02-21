@@ -1,7 +1,7 @@
 import { Send, X, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import logo from "@/assets/logo.png";
+import logo from "../assets/logo.png";
 
 interface Message {
   role: "user" | "assistant";

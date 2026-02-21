@@ -1,8 +1,8 @@
-import { motion } from "framer-motion"; 
-import { AppSidebar } from "@/components/AppSidebar";
+import { motion } from "framer-motion";
+import { AppSidebar } from "../components/AppSidebar";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bookmark, Clock, TrendingUp, Trash2 } from "lucide-react";
-import { useBookmarks } from "@/hooks/useBookmarks";
+import { useBookmarks } from "../hooks/useBookmarks";
 
 const Bookmarks = () => {
   const navigate = useNavigate();

@@ -2,7 +2,7 @@ import { Home, Compass, Bookmark, Settings, ChevronLeft, ChevronRight, Sun, Moon
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import logo from "@/assets/logo.png";
+import logo from "../assets/logo.png";
 
 interface AppSidebarProps {
   activePage?: string;
