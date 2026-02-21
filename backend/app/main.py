@@ -1,13 +1,16 @@
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import engine, init_db
+from app.db import engine, get_db, init_db
+from app.models.database import ExtractedSummary
 
 
 class TranscribeRequest(BaseModel):
@@ -49,9 +52,10 @@ def debug_tables():
     return {"tables": out}
 
 @app.post("/transcribe")
-async def transcribe_youtube(body: TranscribeRequest):
+async def transcribe_youtube(body: TranscribeRequest, db: Session = Depends(get_db)):
     """
-    Download audio from a YouTube URL and return transcript (ElevenLabs STT).
+    Download audio from a YouTube URL, transcribe (ElevenLabs STT), and store
+    the summary JSON in the database keyed by URL.
     Requires ELEVENLABS_API_KEY in env.
     """
     url = (body.url or "").strip()
@@ -74,4 +78,52 @@ async def transcribe_youtube(body: TranscribeRequest):
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Extraction or transcription failed")
+
+    # Store summary JSON by URL (upsert: update if same URL already exists)
+    summary_json = json.dumps(result, ensure_ascii=False)
+    existing = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
+    if existing:
+        existing.summary_json = summary_json
+    else:
+        db.add(ExtractedSummary(source_url=url, summary_json=summary_json))
+    db.commit()
+
     return result
+
+
+@app.get("/summaries/by-url")
+def get_summary_by_url(url: str, db: Session = Depends(get_db)):
+    """
+    Get stored summary JSON for a given source URL (YouTube, podcast, article, etc.).
+    Returns 404 if no summary exists for that URL.
+    """
+    row = db.query(ExtractedSummary).filter(ExtractedSummary.source_url == url).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No summary found for this URL")
+    return {"source_url": row.source_url, "summary": json.loads(row.summary_json)}
+
+
+@app.post("/summaries/get-or-extract")
+async def post_get_or_extract_summary(body: TranscribeRequest, db: Session = Depends(get_db)):
+    """
+    Get summary for a URL: if already in the DB return it; otherwise extract (YouTube
+    via existing transcription, other URLs via placeholder), save, and return.
+    YouTube requires ELEVENLABS_API_KEY. Returns 502 if extraction fails.
+    """
+    url = (body.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+    from app.services import get_or_extract_summary, _is_youtube_url
+
+    if _is_youtube_url(url) and not os.getenv("ELEVENLABS_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="ELEVENLABS_API_KEY not set; YouTube transcription unavailable",
+        )
+    result = await asyncio.to_thread(get_or_extract_summary, url, db)
+    if result is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Extraction failed or URL type not supported yet",
+        )
+    return {"source_url": url, "summary": result}

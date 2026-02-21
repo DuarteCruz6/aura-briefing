@@ -6,6 +6,7 @@ from app.models.database.run import Run, RunStatus
 from app.models.database.run_item import RunItem
 from app.models.database.summary import Summary
 from app.models.database.audio import Audio
+from app.models.database.extracted_summary import ExtractedSummary
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "RunItem",
     "Summary",
     "Audio",
+    "ExtractedSummary",
 ]
