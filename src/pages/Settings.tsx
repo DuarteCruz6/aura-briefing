@@ -27,9 +27,10 @@ const voiceStyles = [
 const Settings = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [briefingLength, setBriefingLength] = useState(7);
   const [voiceStyle, setVoiceStyle] = useState("professional");
-  const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
+  const [frequency, setFrequency] = useState("daily");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
 
   const [isPremium, setIsPremium] = useState(() => {
@@ -67,6 +68,7 @@ const Settings = () => {
   }, []);
 
   const loadSettings = useCallback(() => {
+    setSettingsLoaded(false);
     api
       .getSettings()
       .then((s) => {
@@ -77,9 +79,14 @@ const Settings = () => {
         if ([3, 7, 12].includes(len)) setBriefingLength(len);
         const vs = s.voice_style || "professional";
         if (["professional", "conversational", "energetic", "minimal"].includes(vs)) setVoiceStyle(vs);
+        setSettingsLoaded(true);
       })
       .catch(() => {
-        toast({ title: "Could not load settings", description: "Using local values.", variant: "destructive" });
+        setFrequency("daily");
+        setBriefingLength(7);
+        setVoiceStyle("professional");
+        setSettingsLoaded(true);
+        toast({ title: "Could not load settings", description: "Using default values.", variant: "destructive" });
       });
   }, []);
 
@@ -170,7 +177,16 @@ const Settings = () => {
             </div>
           </Section>
 
-          {/* Briefing Length */}
+          {/* Briefing Length, Frequency, Voice Style — only after settings loaded */}
+          {!settingsLoaded ? (
+            <Section title="Settings">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading settings…
+              </div>
+            </Section>
+          ) : (
+            <>
           <Section title="Briefing Length">
             <div className="grid grid-cols-3 gap-3">
               {briefingLengths.map((opt) => (
@@ -206,7 +222,6 @@ const Settings = () => {
             </div>
           </Section>
 
-          {/* Briefing Frequency */}
           <Section title="Briefing Frequency">
             <div className="grid grid-cols-3 gap-3">
               {briefingFrequencies.map((opt) => (
@@ -244,7 +259,6 @@ const Settings = () => {
             </div>
           </Section>
 
-          {/* Voice Style */}
           <Section title="Voice Style">
             <div className="grid grid-cols-2 gap-3">
               {voiceStyles.map((v) => (
@@ -282,6 +296,8 @@ const Settings = () => {
               ))}
             </div>
           </Section>
+            </>
+          )}
         </div>
       </main>
     </div>
