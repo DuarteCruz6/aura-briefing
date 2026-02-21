@@ -1,10 +1,11 @@
-import { Home, Compass, Bookmark, Settings } from "lucide-react";
+import { Home, Compass, Heart, Bookmark, Settings } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Compass, label: "Explore", path: "/explore" },
+  { icon: Heart, label: "Favs", path: "/favourites" },
   { icon: Bookmark, label: "Saved", path: "/bookmarks" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];

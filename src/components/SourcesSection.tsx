@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, ExternalLink, Youtube, Linkedin, Twitter, Loader2 } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Youtube, Linkedin, Twitter, Heart } from "lucide-react";
 import { toast } from "sonner";
+import { useFavourites } from "../hooks/useFavourites";
 
 interface LocalSource {
   id: string;
@@ -32,6 +33,7 @@ export const SourcesSection = () => {
   const [activePlatform, setActivePlatform] = useState<string>("youtube");
   const [sourceUrl, setSourceUrl] = useState("");
   const [sources, setSources] = useState<LocalSource[]>(loadSources);
+  const { addFavourite, removeFavourite, isFavourite } = useFavourites();
 
   useEffect(() => { saveSources(sources); }, [sources]);
 
@@ -53,19 +55,23 @@ export const SourcesSection = () => {
     toast.success("Source removed");
   };
 
+  const toggleFavSource = (source: LocalSource) => {
+    const favId = source.id;
+    if (isFavourite(favId, "source")) {
+      removeFavourite(favId, "source");
+      toast.success("Removed from favourites");
+    } else {
+      addFavourite({ id: favId, type: "source", label: source.url.split("/").pop() || source.url, url: source.url, platform: source.type });
+      toast.success("Added to favourites");
+    }
+  };
+
   const platformMeta = platforms.find((p) => p.id === activePlatform)!;
   const filteredSources = sources.filter((s) => s.type === activePlatform);
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.25 }}
-      className="mb-12"
-    >
-      <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">
-        Follow Sources
-      </h2>
+    <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-12">
+      <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">Follow Sources</h2>
 
       {/* Platform tabs */}
       <div className="flex gap-2 mb-6">
@@ -94,9 +100,7 @@ export const SourcesSection = () => {
       {/* Add source */}
       <div className="flex gap-3 mb-6">
         <div className="flex flex-1 h-10 rounded-lg bg-secondary/50 border border-border/50 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary/50 transition-all overflow-hidden">
-          <span className="flex items-center pl-3 text-sm text-muted-foreground whitespace-nowrap select-none">
-            {platformMeta.baseUrl}
-          </span>
+          <span className="flex items-center pl-3 text-sm text-muted-foreground whitespace-nowrap select-none">{platformMeta.baseUrl}</span>
           <input
             type="text"
             value={sourceUrl}
@@ -119,15 +123,14 @@ export const SourcesSection = () => {
       {filteredSources.length === 0 ? (
         <div className="glass-panel rounded-xl border border-border/20 p-8 text-center">
           <platformMeta.icon className={`w-8 h-8 mx-auto mb-3 ${platformMeta.color} opacity-40`} />
-          <p className="text-sm text-muted-foreground">
-            No {platformMeta.label} sources yet. Paste a link above to start following.
-          </p>
+          <p className="text-sm text-muted-foreground">No {platformMeta.label} sources yet. Paste a link above to start following.</p>
         </div>
       ) : (
         <div className="space-y-2">
           <AnimatePresence>
             {filteredSources.map((source) => {
               const Icon = platformMeta.icon;
+              const faved = isFavourite(source.id, "source");
               return (
                 <motion.div
                   key={source.id}
@@ -138,6 +141,9 @@ export const SourcesSection = () => {
                 >
                   <Icon className={`w-5 h-5 ${platformMeta.color} shrink-0`} />
                   <p className="flex-1 text-sm font-medium text-foreground truncate">{source.url}</p>
+                  <button onClick={() => toggleFavSource(source)} className="transition-colors" title={faved ? "Remove from favourites" : "Add to favourites"}>
+                    <Heart className={`w-4 h-4 ${faved ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                  </button>
                   <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
                     <ExternalLink className="w-4 h-4" />
                   </a>
