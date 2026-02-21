@@ -1,4 +1,6 @@
-# Welcome to your Lovable project
+# Unscrolling
+
+Your AI-powered news briefing assistant.
 
 ## Project info
 
