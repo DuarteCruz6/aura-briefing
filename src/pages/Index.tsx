@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { MessageSquare, Crown } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
@@ -61,8 +61,13 @@ const Index = () => {
             {/* Top bar */}
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Wednesday, Feb 21</p>
-                <h2 className="font-display text-lg sm:text-xl font-semibold text-foreground">Good morning</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</p>
+                <h2 className="font-display text-lg sm:text-xl font-semibold text-foreground">
+                  {(() => {
+                    const h = new Date().getHours();
+                    return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+                  })()}{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+                </h2>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -82,7 +87,7 @@ const Index = () => {
               </div>
             </div>
 
-            <TodaysBriefing frequency={frequency} />
+            <TodaysBriefing frequency={frequency} onPlay={handlePlay} />
 
             <div className="space-y-3">
               <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">

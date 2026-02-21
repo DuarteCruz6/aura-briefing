@@ -117,11 +117,11 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
           <div className="flex items-center gap-3 sm:gap-4">
             <button
               onClick={() => skip(-10)}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+              className="relative text-muted-foreground hover:text-foreground transition-colors"
               title="Back 10 seconds"
             >
-              <RotateCcw className="w-4 h-4" />
-              <span className="text-[10px] font-medium">10s</span>
+              <RotateCcw className="w-5 h-5" />
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
             </button>
             <button
               onClick={togglePlay}
@@ -131,11 +131,11 @@ export function AudioPlayer({ src, trackTitle }: AudioPlayerProps) {
             </button>
             <button
               onClick={() => skip(10)}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+              className="relative text-muted-foreground hover:text-foreground transition-colors"
               title="Forward 10 seconds"
             >
-              <span className="text-[10px] font-medium">10s</span>
-              <RotateCw className="w-4 h-4" />
+              <RotateCw className="w-5 h-5" />
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
             </button>
           </div>
 

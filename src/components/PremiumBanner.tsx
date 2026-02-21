@@ -10,7 +10,21 @@ interface PremiumBannerProps {
 
 export function PremiumBanner({ showPopup, onPopupChange }: PremiumBannerProps) {
   const [trialStarted, setTrialStarted] = useState(() => {
-    return localStorage.getItem("briefcast_trial") === "active";
+    const trialVal = localStorage.getItem("briefcast_trial");
+    if (trialVal !== "active") return false;
+    // Check if 7-day trial has expired
+    const startStr = localStorage.getItem("briefcast_trial_start");
+    if (startStr) {
+      const start = new Date(startStr).getTime();
+      const now = Date.now();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      if (now - start > sevenDays) {
+        localStorage.removeItem("briefcast_trial");
+        localStorage.removeItem("briefcast_trial_start");
+        return false;
+      }
+    }
+    return true;
   });
 
   const handleStartTrial = () => {
