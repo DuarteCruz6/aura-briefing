@@ -1,4 +1,4 @@
-import { Home, Compass, Hash, Bookmark, Crown, Settings, User, ChevronLeft, ChevronRight } from "lucide-react";
+import { Home, Compass, Bookmark, Crown, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,13 +10,11 @@ interface AppSidebarProps {
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Compass, label: "Explore", path: "/" },
-  { icon: Hash, label: "Topics", path: "/" },
   { icon: Bookmark, label: "Bookmarks", path: "/" },
   { icon: Crown, label: "Premium", path: "/" },
 ];
 
 const bottomItems = [
-  { icon: User, label: "Profile", path: "/settings" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
