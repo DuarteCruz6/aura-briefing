@@ -8,12 +8,6 @@ export function AudioPlayer() {
   const [speed, setSpeed] = useState(1);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
-  const chapters = [
-    { label: "Headlines", position: 15 },
-    { label: "Markets", position: 40 },
-    { label: "Tech", position: 65 },
-    { label: "Weather", position: 85 },
-  ];
   const cycleSpeed = () => {
     const idx = speeds.indexOf(speed);
     setSpeed(speeds[(idx + 1) % speeds.length]);
@@ -21,7 +15,7 @@ export function AudioPlayer() {
 
   return (
     <motion.div
-      initial={{ y: 80 }}
+      initial={{ y: 60 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="fixed bottom-0 left-0 right-0 z-50 glass-panel-strong border-t border-border/50 px-6 py-3"
