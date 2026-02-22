@@ -1500,9 +1500,12 @@ PREMIUM_HEADER = "x-premium"
 async def generate_video(
     body: VideoGenerateRequest,
     request: Request,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
 ):
     """
-    Generate a video briefing: TTS from summary + gradient frame with title.
+    Generate a video briefing: TTS from summary + slideshow synced to transcript.
+    Uses transcript from DB (user's personal cached briefing) when available for slide content.
     Premium only (requires header X-Premium: true). Returns MP4.
     """
     if request.headers.get(PREMIUM_HEADER, "").strip().lower() != "true":
@@ -1523,6 +1526,19 @@ async def generate_video(
     if not summary:
         raise HTTPException(status_code=400, detail="summary is required")
 
+    # Prefer transcript from DB for slideshow content (same script as cached audio)
+    transcript_for_slides: str | None = None
+    cached = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == "personal",
+        )
+        .first()
+    )
+    if cached and (cached.transcript or "").strip():
+        transcript_for_slides = cached.transcript.strip()
+
     VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = VIDEO_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp4"
 
@@ -1534,6 +1550,7 @@ async def generate_video(
             title,
             summary,
             output_path,
+            transcript_for_slides=transcript_for_slides,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

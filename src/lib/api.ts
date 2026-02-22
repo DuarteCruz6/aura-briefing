@@ -273,6 +273,7 @@ export const api = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
         ...(isPremium ? { "X-Premium": "true" } : {}),
       },
       body: JSON.stringify({
