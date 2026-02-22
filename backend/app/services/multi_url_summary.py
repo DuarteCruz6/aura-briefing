@@ -38,9 +38,7 @@ def get_multi_url_summary(urls: list[str], db: Session) -> str:
         except ValueError:
             # e.g. YouTube rate limit ("Too many requests"), transcript unavailable
             result = None
-        if result is None:
-            item_contents.append(f"[Source: {url}]\n(Content could not be extracted or URL not supported.)")
-        else:
+        if result is not None:
             item_contents.append(_summary_dict_to_content(result, url))
 
     if not item_contents:
