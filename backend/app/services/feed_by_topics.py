@@ -12,6 +12,8 @@ from urllib.parse import quote_plus
 
 import httpx
 
+from app.config import settings
+
 # User-Agent for Google News (polite scraping)
 USER_AGENT = "AuraBriefing/1.0 (Feed Reader; +https://github.com)"
 
@@ -131,6 +133,56 @@ def _build_google_news_rss_url(topic: str, hl: str = "en-US", gl: str = "US", ce
     return f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
+def _fetch_articles_newsapi(
+    topic: str,
+    max_articles: int = 10,
+    language: str = "en",
+) -> list[dict]:
+    """
+    Fetch articles for a topic via NewsAPI (direct publisher URLs, no news.google.com).
+    Returns list of {url, title, published_at, source}. Returns [] on error or missing key.
+    """
+    key = (settings.newsapi_api_key or "").strip()
+    if not key:
+        return []
+    topic = (topic or "").strip()
+    if not topic:
+        return []
+    try:
+        r = httpx.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": topic,
+                "apiKey": key,
+                "language": language[:2] if language else "en",
+                "pageSize": min(max_articles, 100),
+                "sortBy": "publishedAt",
+            },
+            timeout=12.0,
+        )
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        if data.get("status") != "ok":
+            return []
+        results = []
+        for art in data.get("articles") or []:
+            url = (art.get("url") or "").strip()
+            if not url or "news.google.com" in url:
+                continue
+            title = art.get("title") or ""
+            published = art.get("publishedAt")
+            source = None
+            if isinstance(art.get("source"), dict):
+                source = art["source"].get("name")
+            results.append({"url": url, "title": title, "published_at": published, "source": source})
+            if len(results) >= max_articles:
+                break
+        return results
+    except Exception:
+        return []
+
+
 def fetch_articles_for_topic(
     topic: str,
     max_articles: int = 10,
@@ -138,12 +190,20 @@ def fetch_articles_for_topic(
     gl: str = "US",
 ) -> list[dict]:
     """
-    Fetch articles from Google News RSS for a single topic.
+    Fetch articles for a single topic. Uses NewsAPI (direct URLs) when NEWSAPI_API_KEY is set,
+    otherwise Google News RSS (may return news.google.com links that are hard to resolve).
     Returns list of {url, title, published_at, source}.
     """
     topic = (topic or "").strip()
     if not topic:
         return []
+    # Prefer NewsAPI so topic URLs are direct publisher links, not news.google.com
+    if (settings.newsapi_api_key or "").strip():
+        lang = (hl or "en-US").split("-")[0] if hl else "en"
+        articles = _fetch_articles_newsapi(topic, max_articles=max_articles, language=lang)
+        if articles:
+            return articles
+    # Fallback: Google News RSS (links may be news.google.com redirects)
     try:
         import feedparser
     except ImportError:
