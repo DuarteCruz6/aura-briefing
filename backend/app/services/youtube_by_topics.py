@@ -165,18 +165,19 @@ def fetch_videos_for_topic(
     return ([chosen], None)
 
 
-def fetch_videos_by_topics(
+def fetch_single_best_video_by_topics(
     topics: list[str],
     min_views: int = MIN_VIEWS_DEFAULT,
-) -> tuple[list[dict], str | None]:
+) -> tuple[dict | None, str | None]:
     """
-    Fetch one video per topic (recent, with at least min_views when possible).
-    Returns (list of {topic, videos: [single item]}, error_message).
+    Fetch one video per topic (recent, with at least min_views when possible), then return
+    only the single video with the highest view count across all topics.
+    Returns ({"topic": str, "video": {...}} or None, error_message).
     Requires GOOGLE_API_KEY.
     """
     if not topics:
-        return ([], None)
-    result = []
+        return (None, None)
+    candidates: list[tuple[str, dict]] = []
     first_error: str | None = None
     for topic in topics:
         topic = (topic or "").strip()
@@ -185,5 +186,13 @@ def fetch_videos_by_topics(
         videos, err = fetch_videos_for_topic(topic, min_views=min_views)
         if err and first_error is None:
             first_error = err
-        result.append({"topic": topic, "videos": videos})
-    return (result, first_error)
+        if videos:
+            candidates.append((topic, videos[0]))
+    if not candidates:
+        return (None, first_error)
+    # Pick the one with highest view_count (treat None as 0)
+    best_topic, best_video = max(
+        candidates,
+        key=lambda t_v: t_v[1].get("view_count") or 0,
+    )
+    return ({"topic": best_topic, "video": best_video}, first_error)

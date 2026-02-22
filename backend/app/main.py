@@ -1374,10 +1374,11 @@ def get_youtube_feed_by_topics(
     min_views: int = 10000,
 ):
     """
-    Get one recent YouTube video per topic (user's topic preferences). Prefers videos with at least min_views.
-    Uses YouTube Data API v3. Requires GOOGLE_API_KEY.
+    Get the single YouTube video with the highest view count across the user's topic preferences.
+    For each topic we take one candidate (recent, min_views when possible), then return only the one with most views.
+    Requires GOOGLE_API_KEY.
     """
-    from app.services.youtube_by_topics import fetch_videos_by_topics
+    from app.services.youtube_by_topics import fetch_single_best_video_by_topics
 
     topics = [
         p.topic
@@ -1388,12 +1389,13 @@ def get_youtube_feed_by_topics(
     ]
     if not topics:
         return {
-            "topics": [],
+            "video": None,
+            "topic": None,
             "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
         }
     min_views = max(0, min_views)
-    results, error = fetch_videos_by_topics(topics, min_views=min_views)
-    out = {"topics": results}
+    result, error = fetch_single_best_video_by_topics(topics, min_views=min_views)
+    out = {"video": result["video"] if result else None, "topic": result["topic"] if result else None}
     if error:
         out["error"] = error
     return out
