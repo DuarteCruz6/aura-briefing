@@ -316,6 +316,23 @@ export const api = {
     }
     return res.blob();
   },
+
+  /**
+   * Generate personal briefing audio from the user's sources and topics.
+   * Fetches content, summarizes with LLM, then TTS. Returns a Blob (WAV).
+   * Use this for the "Your Daily Briefing" card instead of sending a prompt to TTS.
+   */
+  async generatePersonalBriefingAudio(): Promise<Blob> {
+    const res = await fetch(url("/briefing/generate"), {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Briefing generation failed: ${res.status}`);
+    }
+    return res.blob();
+  },
 };
 
 export interface SourceEntry {

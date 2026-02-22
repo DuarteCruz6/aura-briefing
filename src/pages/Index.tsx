@@ -170,7 +170,10 @@ const Index = () => {
 
     try {
       let blob: Blob;
-      if (briefing.generateUrls?.length) {
+      // "Your Daily Briefing" card: generate from user's sources/topics (LLM summary then TTS), not the prompt
+      if (id === "combined-briefing") {
+        blob = await api.generatePersonalBriefingAudio();
+      } else if (briefing.generateUrls?.length) {
         blob = await api.generatePodcastFromUrls(briefing.generateUrls);
       } else if (briefing.generateText) {
         blob = await api.generatePodcast(briefing.generateText);
