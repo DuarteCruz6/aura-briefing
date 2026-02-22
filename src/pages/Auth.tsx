@@ -64,7 +64,7 @@ const Auth = () => {
         {/* Logo */}
         <div className="flex items-center justify-center gap-1.5 mb-8">
           <img src={logo} alt="Unscrolling" className="h-20 object-contain" />
-          <span className="font-display text-2xl font-bold text-foreground tracking-tight">Unscrolling</span>
+          <span className="font-display text-4xl font-bold italic text-foreground tracking-tight">Unscrolling</span>
         </div>
 
         {/* Card */}
