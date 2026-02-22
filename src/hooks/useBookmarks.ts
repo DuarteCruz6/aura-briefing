@@ -80,13 +80,17 @@ export function useBookmarks() {
       if (!user) return;
       const existing = bookmarks.find((b) => b.title === briefing.title);
       if (existing) {
-        // Optimistic: remove from UI immediately
+        // Optimistic: remove from UI immediately (match by id+title so we only remove this one)
         const removed = existing;
-        setBookmarks((prev) => prev.filter((b) => b.id !== removed.id));
-        try {
-          await api.deleteBookmark(removed.id);
-        } catch {
-          setBookmarks((prev) => [removed, ...prev]);
+        setBookmarks((prev) =>
+          prev.filter((b) => !(b.id === removed.id && b.title === removed.title))
+        );
+        if (removed.id !== -1) {
+          try {
+            await api.deleteBookmark(removed.id);
+          } catch {
+            setBookmarks((prev) => [removed, ...prev]);
+          }
         }
         return;
       }
