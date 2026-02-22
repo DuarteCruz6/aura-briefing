@@ -197,13 +197,12 @@ def fetch_articles_for_topic(
     topic = (topic or "").strip()
     if not topic:
         return []
-    # Prefer NewsAPI so topic URLs are direct publisher links, not news.google.com
+    # When NewsAPI key is set, use only NewsAPI (direct URLs). Never fall back to Google so we never serve news.google.com.
     if (settings.newsapi_api_key or "").strip():
         lang = (hl or "en-US").split("-")[0] if hl else "en"
         articles = _fetch_articles_newsapi(topic, max_articles=max_articles, language=lang)
-        if articles:
-            return articles
-    # Fallback: Google News RSS (links may be news.google.com redirects)
+        return articles
+    # Fallback: Google News RSS only when no NewsAPI key (links may be news.google.com redirects)
     try:
         import feedparser
     except ImportError:
