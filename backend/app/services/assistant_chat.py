@@ -1,8 +1,9 @@
 """
-AI assistant chat using Google Gemini API.
+AI assistant chat using Google Gemini API (google.genai SDK).
 Multi-turn conversation with optional context (e.g. user's briefings).
 """
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.config import settings
 
@@ -34,9 +35,6 @@ def chat(
         raise ValueError("GEMINI_API_KEY is not set")
     if model is None:
         model = getattr(settings, "gemini_model", "gemini-2.5-flash")
-
-    genai.configure(api_key=settings.gemini_api_key)
-    gemini_model = genai.GenerativeModel(model)
 
     if not messages or messages[-1].get("role") != "user":
         raise ValueError("Messages must end with a user message")
@@ -76,22 +74,6 @@ def chat(
                 lines.append(f"- {title}")
         context_parts.append("\n".join(lines))
 
-    # Convert to Gemini history: "assistant" -> "model"
-    history: list[dict] = []
-    for m in messages[:-1]:
-        role = m.get("role")
-        content = (m.get("content") or "").strip()
-        if not content:
-            continue
-        if role == "user":
-            history.append({"role": "user", "parts": [content]})
-        elif role == "assistant":
-            history.append({"role": "model", "parts": [content]})
-
-    last_user_content = (messages[-1].get("content") or "").strip()
-    if not last_user_content:
-        raise ValueError("Last user message must have content")
-
     system_instruction = (
         "You are the Unscrolling briefing assistant. You help users understand their news and content briefings. "
         "You know the user's name, their interests (topics and people they follow), and the full text of their newest briefing when available. "
@@ -100,12 +82,26 @@ def chat(
     if context_parts:
         system_instruction += "\n\nContext:\n\n" + "\n\n".join(context_parts)
 
-    # Gemini API: pass system_instruction to the model; history uses "user" and "model"
-    model_with_system = genai.GenerativeModel(
-        model,
-        system_instruction=system_instruction,
+    # Build contents: multi-turn as list of Content (user / model)
+    contents: list[types.Content] = []
+    for m in messages:
+        role = m.get("role")
+        content = (m.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "user":
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=content)]))
+        elif role == "assistant":
+            contents.append(types.Content(role="model", parts=[types.Part.from_text(text=content)]))
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    response = client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            max_output_tokens=2048,
+        ),
     )
-    chat_session = model_with_system.start_chat(history=history)
-    response = chat_session.send_message(last_user_content)
-    text = response.text if response.text else ""
-    return text.strip() or "I couldn't generate a response. Please try again."
+    text = (response.text or "").strip()
+    return text or "I couldn't generate a response. Please try again."

@@ -1,9 +1,17 @@
 """
-Summary generation using Google Gemini API.
+Summary generation using Google Gemini API (google.genai SDK).
 """
-import google.generativeai as genai  # type: ignore[import-untyped]
+from google import genai
+from google.genai import types
 
 from app.config import settings
+
+
+def _client():
+    if not settings.gemini_api_key:
+        raise ValueError("GEMINI_API_KEY is not set")
+    return genai.Client(api_key=settings.gemini_api_key)
+
 
 def generate_digest_summary(item_contents: list[str], *, model: str | None = None) -> str:
     """
@@ -13,25 +21,23 @@ def generate_digest_summary(item_contents: list[str], *, model: str | None = Non
     :param model: Gemini model id. If None, uses settings.gemini_model (default gemini-2.5-flash).
     :return: Summary text suitable for TTS (podcast script).
     """
-    if not settings.gemini_api_key:
-        raise ValueError("GEMINI_API_KEY is not set")
     if model is None:
         model = getattr(settings, "gemini_model", "gemini-2.5-flash")
 
-    genai.configure(api_key=settings.gemini_api_key)
     combined = "\n\n---\n\n".join(item_contents)
     if not combined.strip():
         return "No new content to summarize."
 
     prompt = """You are writing a short podcast script for a personal digest. The user has tracked several sources (articles, videos, posts, podcasts). Below are the new items. Write a concise, engaging summary (2–4 minutes when read aloud) that highlights the main points. Use a friendly, conversational tone. Output only the script, no meta-commentary."""
 
-    gemini_model = genai.GenerativeModel(model)
-    response = gemini_model.generate_content(
-        f"{prompt}\n\nContent:\n\n{combined}",
-        generation_config={"max_output_tokens": 1024},
+    client = _client()
+    response = client.models.generate_content(
+        model=model,
+        contents=f"{prompt}\n\nContent:\n\n{combined}",
+        config=types.GenerateContentConfig(max_output_tokens=1024),
     )
-    text = response.text if response.text else ""
-    return text.strip() or "No summary generated."
+    text = (response.text or "").strip()
+    return text or "No summary generated."
 
 
 def generate_3min_digest_summary(item_contents: list[str], *, model: str | None = None) -> str:
@@ -42,22 +48,20 @@ def generate_3min_digest_summary(item_contents: list[str], *, model: str | None 
     :param model: Gemini model id. If None, uses settings.gemini_model.
     :return: Summary text suitable for TTS (podcast script), ~3 minutes when read aloud.
     """
-    if not settings.gemini_api_key:
-        raise ValueError("GEMINI_API_KEY is not set")
     if model is None:
         model = getattr(settings, "gemini_model", "gemini-2.5-flash")
 
-    genai.configure(api_key=settings.gemini_api_key)
     combined = "\n\n---\n\n".join(item_contents)
     if not combined.strip():
         return "No new content to summarize."
 
     prompt = """You are writing a short podcast script for a personal digest. The user has collected content from several URLs (articles, videos, posts, etc.). Below is the extracted content from each source. Write an engaging summary that takes approximately 3 minutes when read aloud. Highlight the main points from each source in a coherent narrative. Use a friendly, conversational tone. Output only the script, no meta-commentary or section headers like "Summary:"."""
 
-    gemini_model = genai.GenerativeModel(model)
-    response = gemini_model.generate_content(
-        f"{prompt}\n\nContent:\n\n{combined}",
-        generation_config={"max_output_tokens": 2048},
+    client = _client()
+    response = client.models.generate_content(
+        model=model,
+        contents=f"{prompt}\n\nContent:\n\n{combined}",
+        config=types.GenerateContentConfig(max_output_tokens=2048),
     )
-    text = response.text if response.text else ""
-    return text.strip() or "No summary generated."
+    text = (response.text or "").strip()
+    return text or "No summary generated."
