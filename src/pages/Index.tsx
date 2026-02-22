@@ -14,7 +14,7 @@ import { useChat } from "../contexts/ChatContext";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
 import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
-import { api, type BriefingEntry } from "../lib/api";
+import { api } from "../lib/api";
 
 const Index = () => {
   const { user } = useAuth();
@@ -46,17 +46,7 @@ const Index = () => {
     return true;
   });
   const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
-  const [apiBriefings, setApiBriefings] = useState<BriefingEntry[]>([]);
-  const [briefingsLoading, setBriefingsLoading] = useState(true);
-
-  // Load briefings from API (latest from user's sources)
-  useEffect(() => {
-    api
-      .getBriefings()
-      .then((r) => setApiBriefings(r.briefings || []))
-      .catch(() => setApiBriefings([]))
-      .finally(() => setBriefingsLoading(false));
-  }, []);
+  const [briefingsLoading, setBriefingsLoading] = useState(false);
 
   // Re-check premium + frequency when popup closes or page focuses
   useEffect(() => {
@@ -99,29 +89,8 @@ const Index = () => {
     generateUrls: undefined as string[] | undefined,
   }] : [];
 
-  // Merge API briefings with favourite-generated briefings
-  const sourceIconMap: Record<string, React.ReactNode> = {
-    youtube: <TrendingUp className="w-5 h-5" />,
-    x: <Cpu className="w-5 h-5" />,
-    linkedin: <Globe className="w-5 h-5" />,
-    news: <Globe className="w-5 h-5" />,
-    podcast: <Cpu className="w-5 h-5" />,
-  };
-  const apiBriefingCards = apiBriefings.map((b) => ({
-    id: String(b.id),
-    title: b.title,
-    description: b.error ? "Could not fetch latest." : "Latest from your source",
-    duration: "—",
-    topics: [b.source_type],
-    confidence: b.error ? 50 : 85,
-    summary: b.error ? b.error : "Latest update from your followed source.",
-    icon: sourceIconMap[b.source_type] ?? <Globe className="w-5 h-5" />,
-    audioUrl: "",
-    generateText: undefined as string | undefined,
-    generateUrls: b.error ? undefined : [b.source_url],
-  }));
-
-  const filteredBriefings = [...favouriteBriefings, ...apiBriefingCards];
+  // Single daily briefing only (regenerates when user adds/removes sources or topics)
+  const filteredBriefings = favouriteBriefings;
 
   // Cache generated audio blob URLs so we don't regenerate
   const audioCache = useRef<Record<string, string>>({});

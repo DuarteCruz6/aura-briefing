@@ -778,6 +778,12 @@ def create_source(
     db.add(source)
     db.commit()
     db.refresh(source)
+    # Invalidate cached daily briefing so next play regenerates with new source
+    db.query(CachedBriefingAudio).filter(
+        CachedBriefingAudio.user_id == user_id,
+        CachedBriefingAudio.cache_key == "personal",
+    ).delete()
+    db.commit()
     return {
         "id": source.id,
         "type": source.type.value,
@@ -799,6 +805,12 @@ def delete_source(
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
     db.delete(source)
+    db.commit()
+    # Invalidate cached daily briefing so next play reflects removed source
+    db.query(CachedBriefingAudio).filter(
+        CachedBriefingAudio.user_id == user_id,
+        CachedBriefingAudio.cache_key == "personal",
+    ).delete()
     db.commit()
     return {"deleted": True}
 
