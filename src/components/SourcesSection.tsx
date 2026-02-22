@@ -10,6 +10,32 @@ const platforms = [
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, color: "text-blue-500", placeholder: "e.g. https://linkedin.com/in/satyanadella" },
 ] as const;
 
+/** Allowed URL patterns per platform: YouTube channels, X users, LinkedIn profiles only. */
+const URL_PATTERNS: Record<string, RegExp> = {
+  youtube: /^(https?:\/\/)?(www\.)?youtube\.com\/(channel\/[^/?#]+|@[^/?#]+|c\/[^/?#]+|user\/[^/?#]+)/i,
+  x: /^(https?:\/\/)?(www\.)?(x\.com|twitter\.com)\/[a-zA-Z0-9_]{1,15}\/?$/i,
+  linkedin: /^(https?:\/\/)?(www\.)?linkedin\.com\/in\/[^/?#]+/i,
+};
+
+function validateSourceUrl(url: string, platformId: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return "Enter a URL";
+  try {
+    new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+  } catch {
+    return "Enter a valid URL";
+  }
+  const normalized = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+  const re = URL_PATTERNS[platformId];
+  if (!re || !re.test(normalized)) {
+    if (platformId === "youtube") return "Use a YouTube channel URL (e.g. youtube.com/@handle or youtube.com/channel/...)";
+    if (platformId === "x") return "Use an X or Twitter profile URL (e.g. x.com/username)";
+    if (platformId === "linkedin") return "Use a LinkedIn profile URL (e.g. linkedin.com/in/username)";
+    return "Invalid URL for this platform";
+  }
+  return null;
+}
+
 export const SourcesSection = () => {
   const [activePlatform, setActivePlatform] = useState<string>("youtube");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -24,13 +50,19 @@ export const SourcesSection = () => {
   const handleAdd = async () => {
     const trimmed = sourceUrl.trim();
     if (!trimmed) return;
+    const validationError = validateSourceUrl(trimmed, activePlatform);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     if (isSourceAdded(trimmed)) {
       toast.error("You're already following this source");
       return;
     }
+    const normalizedUrl = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
     setAdding(true);
     try {
-      await addSource({ type: activePlatform, url: trimmed, name: trimmed.split("/").pop() || undefined });
+      await addSource({ type: activePlatform, url: normalizedUrl, name: normalizedUrl.split("/").pop()?.replace(/\?.*$/, "") || undefined });
       setSourceUrl("");
       toast.success("Source added!");
     } catch (err: unknown) {
