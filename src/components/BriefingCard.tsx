@@ -133,7 +133,7 @@ export function BriefingCard({ id, title, description, duration, topics, confide
                 }
               }}
               disabled={isGenerating}
-              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg transition-transform duration-200 ${isGenerating ? "opacity-70 animate-pulse" : "hover:scale-105"}`}
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg transition-transform duration-200 ${isGenerating ? "opacity-70" : "hover:scale-105"}`}
             >
               {isGenerating ? (
                 <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
