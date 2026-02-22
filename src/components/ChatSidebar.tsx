@@ -1,6 +1,7 @@
 import { Send, X, ExternalLink, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import logo from "../assets/logo.png";
 import { api } from "../lib/api";
 
@@ -150,7 +151,13 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
                       : "bg-secondary text-secondary-foreground"
                   }`}
                 >
-                  <p>{msg.content}</p>
+                  {msg.role === "assistant" ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-inherit prose-p:my-0 prose-p:first:mt-0 prose-p:last:mb-0 prose-ul:my-1 prose-li:my-0 [&_a]:text-inherit [&_a]:underline">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p>{msg.content}</p>
+                  )}
                   {msg.sources && (
                     <div className="mt-2 pt-2 border-t border-border/30 space-y-1">
                       {msg.sources.map((s) => (
