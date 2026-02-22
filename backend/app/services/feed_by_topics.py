@@ -95,14 +95,29 @@ def resolve_google_news_url(url: str) -> str:
                             return res_url
     except Exception:
         pass
-    # Fallback: try HTTP redirect (works for some Google News URLs)
+    # Fallback: fetch the article page and extract real URL from redirect / HTML / JS
     try:
-        with httpx.Client(follow_redirects=True, timeout=8.0, headers={"User-Agent": USER_AGENT}) as client:
+        with httpx.Client(follow_redirects=True, timeout=10.0, headers={"User-Agent": USER_AGENT}) as client:
             r = client.get(url)
-            if r.status_code == 200:
-                final = str(r.url)
-                if final.startswith("http") and "news.google.com" not in final:
-                    return final
+            if r.status_code != 200:
+                raise ValueError("non-200")
+            text = r.text or ""
+            # 1. data-n-url (common on Google News intermediate pages)
+            match = re.search(r'data-n-url="([^"]+)"', text)
+            if match:
+                res_url = match.group(1).strip()
+                if res_url.startswith("http") and "news.google.com" not in res_url:
+                    return res_url
+            # 2. JavaScript window.location redirect
+            match = re.search(r'window\.location\.replace\([\'"]([^\'"]+)[\'"]\)', text)
+            if match:
+                res_url = match.group(1).strip()
+                if res_url.startswith("http") and "news.google.com" not in res_url:
+                    return res_url
+            # 3. Standard HTTP redirect (if we ended up on a different host)
+            final = str(r.url)
+            if final.startswith("http") and "news.google.com" not in final:
+                return final
     except Exception:
         pass
     return url
@@ -186,28 +201,4 @@ def fetch_articles_by_topics(
                 deduped.append(a)
         result.append({"topic": topic, "articles": deduped})
 
-    # Fallback: try HTTP GET and parse the JS/HTML for the real URL
-    try:
-        with httpx.Client(follow_redirects=True, timeout=10.0, headers={"User-Agent": USER_AGENT}) as client:
-            r = client.get(url)
-            
-            # 1. Check for data-n-url (very common on Google News intermediate pages)
-            match = re.search(r'data-n-url="([^"]+)"', r.text)
-            if match:
-                return match.group(1)
-            
-            # 2. Check for JavaScript window.location redirect
-            match = re.search(r'window\.location\.replace\([\'"]([^\'"]+)[\'"]\)', r.text)
-            if match:
-                return match.group(1)
-                
-            # 3. Check if standard HTTP redirect actually happened (rare nowadays, but good to keep)
-            final = str(r.url)
-            if final.startswith("http") and "news.google.com" not in final:
-                return final
-    except Exception:
-        pass
-        
-    return url
-    
     return result
