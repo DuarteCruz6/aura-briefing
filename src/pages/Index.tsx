@@ -7,7 +7,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useFavourites } from "../hooks/useFavourites";
 import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { useSources } from "../hooks/useSources";
-import { TodaysBriefing } from "../components/TodaysBriefing";
 import { BriefingCard } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
@@ -286,8 +285,6 @@ const Index = () => {
 
             {hasFavourites ? (
               <>
-                <TodaysBriefing frequency={frequency} onPlay={handlePlay} isPlaying={isPlaying} currentTrackId={currentTrack?.id} onPause={handlePause} />
-
                 <div className="space-y-3">
                   <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                     Your {freqLabel} Briefings
