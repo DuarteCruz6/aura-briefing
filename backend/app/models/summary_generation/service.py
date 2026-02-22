@@ -28,7 +28,7 @@ def generate_digest_summary(item_contents: list[str], *, model: str | None = Non
     if not combined.strip():
         return "No new content to summarize."
 
-    prompt = """You are writing a short podcast script for a personal digest. The user has tracked several sources (articles, videos, posts, podcasts). Below are the new items. Write a concise, engaging summary (2–4 minutes when read aloud) that highlights the main points. Use a friendly, conversational tone. Output only the script, no meta-commentary."""
+    prompt = """You are writing a short podcast script for a personal digest. It is for a single user. The user has tracked several sources (articles, videos, posts, podcasts). Below are the new items. Write a concise, engaging summary that highlights the main points. Use a friendly, conversational tone. Output only the script, no meta-commentary."""
 
     client = _client()
     response = client.models.generate_content(
@@ -55,7 +55,7 @@ def generate_3min_digest_summary(item_contents: list[str], *, model: str | None 
     if not combined.strip():
         return "No new content to summarize."
 
-    prompt = """You are writing a short podcast script for a personal digest. The user has collected content from several URLs (articles, videos, posts, etc.). Below is the extracted content from each source. Write an engaging summary that takes approximately 3 minutes when read aloud. Highlight the main points from each source in a coherent narrative. Use a friendly, conversational tone. Output only the script, no meta-commentary or section headers like "Summary:"."""
+    prompt = """You are writing a short podcast script for a personal digest. It is for a single user. The user has collected content from several URLs (articles, videos, posts, etc.). Below is the extracted content from each source. Write an engaging summary. Highlight the main points from each source in a coherent narrative. Use a friendly, conversational tone. Output only the script, no meta-commentary or section headers like "Summary:"."""
 
     client = _client()
     response = client.models.generate_content(
