@@ -34,6 +34,17 @@ const regions = [
   { id: "latam", label: "Latin America", emoji: "🌎", desc: "LATAM news & trends" },
 ];
 
+/** Extract YouTube video ID from watch or youtu.be URL for embed. */
+function youtubeEmbedUrl(watchUrl: string): string | null {
+  try {
+    const u = new URL(watchUrl);
+    if (u.hostname === "youtu.be") return u.pathname.slice(1) || null;
+    return u.searchParams.get("v");
+  } catch {
+    return null;
+  }
+}
+
 const trendingNow = [
   { id: "trend-gpt5", label: "GPT-5 Launch", emoji: "🤖", category: "AI" },
   { id: "trend-fed", label: "Fed Rate Decision", emoji: "📊", category: "Markets" },
@@ -205,27 +216,42 @@ const Explore = () => {
                       <span className="text-sm">Loading video…</span>
                     </div>
                   ) : youtubeSuggestion?.video ? (
-                    <a
-                      href={youtubeSuggestion.video.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 rounded-xl glass-panel border border-border/50 p-4 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0">
-                        <Youtube className="w-5 h-5 text-red-500" />
+                    <div className="rounded-xl glass-panel border border-border/50 overflow-hidden">
+                      {youtubeEmbedUrl(youtubeSuggestion.video.url) && (
+                        <div className="aspect-video w-full">
+                          <iframe
+                            src={`https://www.youtube.com/embed/${youtubeEmbedUrl(youtubeSuggestion.video.url)}`}
+                            title={youtubeSuggestion.video.title}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                            className="w-full h-full"
+                          />
+                        </div>
+                      )}
+                      <div className="p-3 flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground line-clamp-2">{youtubeSuggestion.video.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{youtubeSuggestion.video.channel_title}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {youtubeSuggestion.video.view_count != null && (
+                              <span className="text-xs text-muted-foreground">{youtubeSuggestion.video.view_count.toLocaleString()} views</span>
+                            )}
+                            {youtubeSuggestion.topic && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">{youtubeSuggestion.topic}</span>
+                            )}
+                          </div>
+                        </div>
+                        <a
+                          href={youtubeSuggestion.video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                          title="Open on YouTube"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
                       </div>
-                      <span className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary">{youtubeSuggestion.video.title}</span>
-                        <span className="text-xs text-muted-foreground block mt-0.5">{youtubeSuggestion.video.channel_title}</span>
-                        {youtubeSuggestion.video.view_count != null && (
-                          <span className="text-xs text-muted-foreground">{youtubeSuggestion.video.view_count.toLocaleString()} views</span>
-                        )}
-                        {youtubeSuggestion.topic && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase ml-1">{youtubeSuggestion.topic}</span>
-                        )}
-                      </span>
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                    </a>
+                    </div>
                   ) : (
                     <div className="rounded-lg glass-panel border border-border/30 p-3 text-sm text-muted-foreground">
                       {youtubeSuggestion?.error ? youtubeSuggestion.error : "No suggested video right now. Add topics or try again later."}
