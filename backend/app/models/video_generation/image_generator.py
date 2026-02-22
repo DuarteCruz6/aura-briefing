@@ -17,20 +17,19 @@ FRAME_HEIGHT = 720
 
 
 def _prompt_for_segment(segment_text: str, title: str | None, is_first: bool) -> str:
-    """Build a short, visual-only prompt for Imagen from segment text."""
-    # Keep prompt concise and descriptive; Imagen works best with clear visual descriptions
+    """Build a short, visual-only prompt for Imagen. No text/words in the image."""
     snippet = (segment_text or "").strip()[:280]
     if not snippet:
         snippet = title or "daily news briefing"
-    # Ask for editorial style, no text in image
+    no_text = " Do not include any text, words, letters, numbers, or captions in the image — purely visual scene."
     if is_first:
         return (
             f"Professional editorial photograph or illustration for a news briefing. "
-            f"Main theme: {snippet}. Clean, modern, high quality, no text or words in the image."
+            f"Main theme: {snippet}. Clean, modern, high quality.{no_text}"
         )
     return (
         f"Professional editorial image for a news segment. Theme: {snippet}. "
-        f"Clean, modern, no text or captions in the image."
+        f"Clean, modern, high quality.{no_text}"
     )
 
 

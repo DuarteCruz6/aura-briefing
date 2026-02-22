@@ -1747,8 +1747,11 @@ async def generate_video(
         )
         .first()
     )
+    cached_audio_path: str | None = None
     if cached and (cached.transcript or "").strip():
         transcript_for_slides = cached.transcript.strip()
+        if cached.storage_path and os.path.isfile(cached.storage_path):
+            cached_audio_path = cached.storage_path
 
     VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = VIDEO_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp4"
@@ -1772,6 +1775,7 @@ async def generate_video(
             summary,
             output_path,
             transcript_for_slides=transcript_for_slides,
+            cached_audio_path=cached_audio_path,
             progress_callback=video_progress_callback,
         )
     except ValueError as e:
