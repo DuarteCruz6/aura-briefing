@@ -26,7 +26,7 @@ export function usePreferencesTopics() {
   const { user } = useAuth();
   const key = localKey(user?.email);
   const [topics, setTopics] = useState<TopicPreference[]>([]);
-  const [loading, setLoading] = useState(!!user);
+  const [loading, setLoading] = useState(true);
   const [useLocal, setUseLocal] = useState(false);
 
   const loadTopics = useCallback(async () => {
@@ -35,16 +35,15 @@ export function usePreferencesTopics() {
       setLoading(false);
       return;
     }
-    // Show cached interests immediately so UI isn't blank while API responds (helps when DB is busy)
-    const cached = loadLocal(key);
-    if (cached.length > 0) setTopics(cached);
     setLoading(true);
     try {
       const list = await api.getPreferencesTopics();
       setTopics(list);
+      // Sync API topics to local storage as backup
       saveLocal(key, list);
       setUseLocal(false);
     } catch {
+      // Fallback to localStorage
       const local = loadLocal(key);
       setTopics(local);
       setUseLocal(true);
