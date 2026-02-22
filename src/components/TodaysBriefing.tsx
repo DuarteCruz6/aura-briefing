@@ -83,20 +83,6 @@ export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, current
                     onClick={() => isCurrent ? onPause?.() : onPlay?.(briefingId, BRIEFING_AUDIO, briefingTitle)}
                     className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow flex-shrink-0"
                   >
-                    {!isCurrent && (
-                      <>
-                        <motion.div
-                          animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                          className="absolute inset-0 rounded-full bg-primary/30"
-                        />
-                        <motion.div
-                          animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
-                          className="absolute inset-0 rounded-full bg-primary/20"
-                        />
-                      </>
-                    )}
                     {isCurrent
                       ? <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-primary-foreground relative z-10" />
                       : <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5 fill-primary-foreground relative z-10" />

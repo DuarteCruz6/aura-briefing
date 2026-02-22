@@ -2,6 +2,7 @@
 Generate podcast audio from text using Google Gemini TTS.
 
 Requires GEMINI_API_KEY in env or pass api_key=.
+Long scripts are split into chunks to avoid API truncation; chunks are concatenated into one WAV.
 """
 
 import os
@@ -18,6 +19,76 @@ DEFAULT_VOICE_ID = DEFAULT_VOICE_NAME  # alias for API compatibility
 GEMINI_TTS_SAMPLE_RATE = 24000
 GEMINI_TTS_CHANNELS = 1
 GEMINI_TTS_SAMPLE_WIDTH = 2
+
+# Chunk size to avoid TTS API truncation (conservative; some APIs limit ~5k bytes per request)
+TTS_CHUNK_MAX_CHARS = 4000
+
+
+def _split_into_chunks(text: str, max_chars: int = TTS_CHUNK_MAX_CHARS) -> list[str]:
+    """Split text into chunks at sentence/paragraph boundaries, each <= max_chars."""
+    text = (text or "").strip()
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks: list[str] = []
+    rest = text
+    while rest:
+        if len(rest) <= max_chars:
+            chunks.append(rest.strip())
+            break
+        block = rest[: max_chars + 1]
+        # Prefer break at paragraph, then sentence, then space
+        break_at = -1
+        for sep in ("\n\n", "\n", ". ", "! ", "? ", "; ", ", ", " "):
+            idx = block.rfind(sep)
+            if idx > max_chars // 2:
+                break_at = idx + len(sep)
+                break
+        if break_at <= 0:
+            break_at = max_chars
+        chunk = rest[:break_at].strip()
+        if chunk:
+            chunks.append(chunk)
+        rest = rest[break_at:].lstrip()
+    return chunks
+
+
+def _tts_single_chunk(
+    client,
+    text: str,
+    voice_name: str,
+    model_id: str,
+) -> bytes:
+    """Call Gemini TTS for one chunk; return raw PCM bytes."""
+    from google.genai import types
+
+    response = client.models.generate_content(
+        model=model_id or DEFAULT_MODEL_ID,
+        contents=text,
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_name,
+                    )
+                )
+            ),
+        ),
+    )
+    try:
+        part = response.candidates[0].content.parts[0]
+        data = part.inline_data.data
+    except (IndexError, AttributeError) as e:
+        raise ValueError("Gemini TTS returned no audio") from e
+    if isinstance(data, str):
+        import base64
+        data = base64.b64decode(data)
+    if not data:
+        raise ValueError("Gemini TTS returned empty audio")
+    return data
 
 
 def text_to_audio(
@@ -50,7 +121,6 @@ def text_to_audio(
     """
     try:
         from google import genai
-        from google.genai import types
     except ImportError as e:
         raise ImportError(
             "google-genai is required for TTS. Install with: pip install google-genai"
@@ -72,40 +142,35 @@ def text_to_audio(
 
     client = genai.Client(api_key=key)
     voice_name = (voice_id or DEFAULT_VOICE_NAME).strip() or DEFAULT_VOICE_NAME
+    model_id = model_id or DEFAULT_MODEL_ID
 
-    response = client.models.generate_content(
-        model=model_id or DEFAULT_MODEL_ID,
-        contents=text,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=voice_name,
-                    )
-                )
-            ),
-        ),
-    )
+    chunks = _split_into_chunks(text, TTS_CHUNK_MAX_CHARS)
+    if not chunks:
+        raise ValueError("text is required and cannot be empty")
 
-    # Extract PCM from response
-    try:
-        part = response.candidates[0].content.parts[0]
-        data = part.inline_data.data
-    except (IndexError, AttributeError) as e:
-        raise ValueError("Gemini TTS returned no audio") from e
-
-    if isinstance(data, str):
-        import base64
-        data = base64.b64decode(data)
-    if not data:
-        raise ValueError("Gemini TTS returned empty audio")
-
-    with wave.open(str(output_path), "wb") as wf:
-        wf.setnchannels(GEMINI_TTS_CHANNELS)
-        wf.setsampwidth(GEMINI_TTS_SAMPLE_WIDTH)
-        wf.setframerate(GEMINI_TTS_SAMPLE_RATE)
-        wf.writeframes(data)
+    if len(chunks) == 1:
+        # Single chunk: one API call, write directly
+        data = _tts_single_chunk(client, chunks[0], voice_name, model_id)
+        with wave.open(str(output_path), "wb") as wf:
+            wf.setnchannels(GEMINI_TTS_CHANNELS)
+            wf.setsampwidth(GEMINI_TTS_SAMPLE_WIDTH)
+            wf.setframerate(GEMINI_TTS_SAMPLE_RATE)
+            wf.writeframes(data)
+    else:
+        # Multiple chunks: TTS each, concatenate PCM, write one WAV
+        all_frames = b""
+        for chunk in chunks:
+            if not chunk.strip():
+                continue
+            data = _tts_single_chunk(client, chunk, voice_name, model_id)
+            all_frames += data
+        if not all_frames:
+            raise ValueError("Gemini TTS returned no audio")
+        with wave.open(str(output_path), "wb") as wf:
+            wf.setnchannels(GEMINI_TTS_CHANNELS)
+            wf.setsampwidth(GEMINI_TTS_SAMPLE_WIDTH)
+            wf.setframerate(GEMINI_TTS_SAMPLE_RATE)
+            wf.writeframes(all_frames)
 
     duration_seconds = _get_wav_duration(output_path)
     return str(output_path), duration_seconds

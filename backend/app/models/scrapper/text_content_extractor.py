@@ -97,7 +97,7 @@ Output only the JSON object, no markdown or explanation."""
     response = client.models.generate_content(
         model=model,
         contents=f"{prompt}\n\nURL: {url}\n\nPage text:\n\n{truncated}",
-        config=types.GenerateContentConfig(max_output_tokens=8192),
+        config=types.GenerateContentConfig(max_output_tokens=65536),
     )
     out = (response.text or "").strip()
     if not out:
