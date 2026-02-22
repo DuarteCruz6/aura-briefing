@@ -1526,11 +1526,10 @@ def get_x_feed_by_topics(
     db: Session = Depends(get_db),
 ):
     """
-    Get X (Twitter) posts: by topic (user preferences) and from famous people (Apify profile scraper).
-    Preferably returns posts from well-known accounts when APIFY_API_TOKEN is set.
+    Get one recent X (Twitter) post per topic from the user's topic preferences.
+    Uses Apify (scraper_one/x-posts-search) when APIFY_API_TOKEN is set; otherwise falls back to Nitter search RSS.
     """
-    from app.config import settings
-    from app.services.x_by_topics import fetch_posts_by_topics, fetch_posts_from_famous_accounts
+    from app.services.x_by_topics import fetch_posts_by_topics
 
     topics = [
         p.topic
@@ -1539,18 +1538,13 @@ def get_x_feed_by_topics(
         .order_by(UserTopicPreference.created_at.desc())
         .all()
     ]
-    topic_results = fetch_posts_by_topics(topics) if topics else []
-
-    # Preferably: posts from famous people (one recent post per account)
-    from_famous: list[dict] = []
-    token = (getattr(settings, "apify_api_token", None) or "").strip()
-    if token:
-        from_famous = fetch_posts_from_famous_accounts(token, max_accounts=12)
-
-    out: dict = {"topics": topic_results, "from_famous": from_famous}
     if not topics:
-        out["message"] = "Add topic preferences (e.g. cars, ireland) via POST /preferences/topics for topic-based posts."
-    return out
+        return {
+            "topics": [],
+            "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
+        }
+    results = fetch_posts_by_topics(topics)
+    return {"topics": results}
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
