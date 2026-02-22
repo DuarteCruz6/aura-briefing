@@ -1317,6 +1317,7 @@ async def generate_personal_briefing(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "personal.wav"
 
+
     try:
         path_str, duration_seconds = await asyncio.to_thread(
             text_to_audio,
