@@ -2,6 +2,31 @@ import { useState, useCallback, useEffect } from "react";
 import { api, type BookmarkEntry } from "../lib/api";
 import { useAuth } from "./useAuth";
 
+const STORAGE_PREFIX = "briefcast_bookmarks_";
+
+function storageKey(email: string | undefined): string {
+  return `${STORAGE_PREFIX}${email ?? "guest"}`;
+}
+
+function loadFromStorage(key: string): BookmarkEntry[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(key: string, list: BookmarkEntry[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+
 export interface BookmarkedBriefing {
   id?: number;
   title: string;
@@ -14,7 +39,8 @@ export interface BookmarkedBriefing {
 
 export function useBookmarks() {
   const { user } = useAuth();
-  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([]);
+  const key = storageKey(user?.email);
+  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>(() => loadFromStorage(key));
   const [loading, setLoading] = useState(true);
 
   const loadBookmarks = useCallback(async () => {
@@ -27,16 +53,22 @@ export function useBookmarks() {
     try {
       const list = await api.getBookmarks();
       setBookmarks(list);
+      saveToStorage(key, list);
     } catch {
-      setBookmarks([]);
+      setBookmarks(loadFromStorage(key));
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, key]);
 
   useEffect(() => {
+    setBookmarks(loadFromStorage(key));
     loadBookmarks();
-  }, [loadBookmarks]);
+  }, [loadBookmarks, key]);
+
+  useEffect(() => {
+    if (!loading) saveToStorage(key, bookmarks);
+  }, [key, bookmarks, loading]);
 
   const isBookmarked = useCallback(
     (title: string) => bookmarks.some((b) => b.title === title),
