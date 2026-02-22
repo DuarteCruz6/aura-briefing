@@ -188,7 +188,7 @@ const Bookmarks = () => {
                   </h3>
                   {bookmarks.map((b, i) => (
                     <BriefingCard
-                      key={b.id}
+                      key={b.id === -1 ? `opt-${b.title}` : String(b.id)}
                       id={`bookmark-${b.id}`}
                       title={b.title}
                       description={b.description ?? ""}
