@@ -32,3 +32,6 @@ class User(Base):
     bookmarks: Mapped[list["Bookmark"]] = relationship(
         "Bookmark", back_populates="user", cascade="all, delete-orphan"
     )
+    cached_briefing_audios: Mapped[list["CachedBriefingAudio"]] = relationship(
+        "CachedBriefingAudio", back_populates="user", cascade="all, delete-orphan"
+    )

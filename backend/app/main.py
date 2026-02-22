@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -20,6 +21,7 @@ from app.config import settings
 from app.db import engine, get_db, init_db
 from app.models.database import (
     Bookmark,
+    CachedBriefingAudio,
     ExtractedSummary,
     FetchFrequency,
     Run,
@@ -1103,6 +1105,11 @@ def delete_preference_topic(
     return {"deleted": True}
 
 
+def _get_podcast_output_dir() -> Path:
+    """Central place for podcast output dir (used before PODCAST_OUTPUT_DIR is defined)."""
+    return Path("/tmp/podcast_audio")
+
+
 @app.post("/briefing/generate")
 async def generate_personal_briefing(
     user_id: int = Depends(get_current_user_id),
@@ -1113,10 +1120,37 @@ async def generate_personal_briefing(
 ):
     """
     Generate a personal briefing by gathering URLs from sources and topics,
-    then forwarding them to the /summaries/multi-url endpoint.
+    then summarizing and generating TTS. Audio is cached in the DB so repeated
+    plays return the same file without regenerating.
     """
+    from app.models.podcast_generation import text_to_audio
+    from app.models.podcast_generation.tts_generator import (
+        DEFAULT_MODEL_ID,
+        DEFAULT_VOICE_ID,
+    )
     from app.services.feed_by_topics import fetch_articles_for_topic
     from app.services.latest_from_sources import fetch_latest_for_sources
+    from app.services.multi_url_summary import get_multi_url_summary
+
+    cache_key = "personal"
+    cached = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == cache_key,
+        )
+        .first()
+    )
+    if cached and cached.storage_path and os.path.isfile(cached.storage_path):
+        return FileResponse(
+            cached.storage_path,
+            media_type="audio/wav",
+            filename="podcast.wav",
+            headers={
+                "X-Duration-Seconds": str(cached.duration_seconds) if cached.duration_seconds is not None else "",
+                "X-Cached": "true",
+            },
+        )
 
     urls: list[str] = []
 
@@ -1154,10 +1188,68 @@ async def generate_personal_briefing(
             detail="No content to summarize. Add followed sources and/or topic preferences.",
         )
 
-    logger.info("Briefing: forwarding %s urls to multi-url summary", len(urls))
-    
-    # 3) Forward directly to your existing endpoint logic
-    return await post_multi_url_summary(MultiUrlRequest(urls=urls), db)
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY not set; summary + podcast generation unavailable",
+        )
+
+    try:
+        summary = await asyncio.to_thread(get_multi_url_summary, urls, db)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    if not (summary or "").strip():
+        raise HTTPException(status_code=503, detail="No summary generated")
+
+    output_dir = _get_podcast_output_dir() / "cache" / str(user_id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "personal.wav"
+
+    try:
+        path_str, duration_seconds = await asyncio.to_thread(
+            text_to_audio,
+            summary,
+            output_path,
+            voice_id=DEFAULT_VOICE_ID,
+            model_id=DEFAULT_MODEL_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(e))
+
+    # Upsert cache row (one per user + key)
+    existing = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == cache_key,
+        )
+        .first()
+    )
+    if existing:
+        existing.storage_path = path_str
+        existing.duration_seconds = duration_seconds
+    else:
+        db.add(
+            CachedBriefingAudio(
+                user_id=user_id,
+                cache_key=cache_key,
+                storage_path=path_str,
+                duration_seconds=duration_seconds,
+            )
+        )
+    db.commit()
+
+    return FileResponse(
+        path_str,
+        media_type="audio/wav",
+        filename="podcast.wav",
+        headers={
+            "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
+        },
+    )
 
 @app.get("/feed/by-topics")
 def get_feed_by_topics(
@@ -1198,11 +1290,22 @@ def _normalize_voice_and_model(voice_id: str | None, model_id: str | None) -> tu
     return v, m
 
 
+def _urls_cache_key(urls: list[str]) -> str:
+    """Stable cache key for a list of URLs (order-independent)."""
+    canonical = json.dumps(sorted(u.strip() for u in urls if (u and u.strip())), sort_keys=True)
+    return "urls:" + hashlib.sha256(canonical.encode()).hexdigest()
+
+
 @app.post("/podcast/generate-from-urls")
-async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session = Depends(get_db)):
+async def generate_podcast_from_urls(
+    body: PodcastFromUrlsRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """
     Generate podcast audio from multiple URLs: fetch/summarize content from each URL,
     then turn the combined summary into speech via Gemini TTS. Returns a WAV file.
+    Audio is cached per user + URLs so repeated requests return the same file.
     Requires GEMINI_API_KEY.
     """
     from app.models.podcast_generation import text_to_audio
@@ -1220,6 +1323,26 @@ async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session =
             detail="GEMINI_API_KEY not set; summary + podcast generation unavailable",
         )
 
+    cache_key = _urls_cache_key(body.urls)
+    cached = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == cache_key,
+        )
+        .first()
+    )
+    if cached and cached.storage_path and os.path.isfile(cached.storage_path):
+        return FileResponse(
+            cached.storage_path,
+            media_type="audio/wav",
+            filename="podcast.wav",
+            headers={
+                "X-Duration-Seconds": str(cached.duration_seconds) if cached.duration_seconds is not None else "",
+                "X-Cached": "true",
+            },
+        )
+
     try:
         summary = await asyncio.to_thread(get_multi_url_summary, body.urls, db)
     except ValueError as e:
@@ -1228,8 +1351,9 @@ async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session =
     if not (summary or "").strip():
         raise HTTPException(status_code=503, detail="No summary generated")
 
-    PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
+    output_dir = PODCAST_OUTPUT_DIR / "cache" / str(user_id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{hashlib.sha256(cache_key.encode()).hexdigest()[:16]}.wav"
 
     try:
         path_str, duration_seconds = await asyncio.to_thread(
@@ -1243,6 +1367,28 @@ async def generate_podcast_from_urls(body: PodcastFromUrlsRequest, db: Session =
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=str(e))
+
+    existing = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == cache_key,
+        )
+        .first()
+    )
+    if existing:
+        existing.storage_path = path_str
+        existing.duration_seconds = duration_seconds
+    else:
+        db.add(
+            CachedBriefingAudio(
+                user_id=user_id,
+                cache_key=cache_key,
+                storage_path=path_str,
+                duration_seconds=duration_seconds,
+            )
+        )
+    db.commit()
 
     return FileResponse(
         path_str,

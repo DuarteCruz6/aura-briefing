@@ -26,6 +26,7 @@ def init_db():
     from app.models.database import (  # noqa: F401 - register models
         Base,
         Bookmark,
+        CachedBriefingAudio,
         ExtractedSummary,
         UserSetting,
         UserTopicPreference,
