@@ -198,3 +198,82 @@ def _get_wav_duration(path: Path) -> float | None:
             return float(frames) / float(rate) if rate else None
     except Exception:
         return None
+
+
+def _pcm_duration_seconds(num_bytes: int) -> float:
+    """Duration in seconds for raw PCM bytes (24kHz, mono, 16-bit)."""
+    return num_bytes / (GEMINI_TTS_SAMPLE_RATE * GEMINI_TTS_CHANNELS * GEMINI_TTS_SAMPLE_WIDTH)
+
+
+def text_to_audio_with_chunks(
+    text: str,
+    output_path: str | Path,
+    *,
+    api_key: str | None = None,
+    voice_id: str = DEFAULT_VOICE_NAME,
+    model_id: str = DEFAULT_MODEL_ID,
+    progress_callback: Callable[[int], None] | None = None,
+) -> tuple[str, float, list[tuple[str, float]]]:
+    """
+    Same as text_to_audio but returns per-chunk durations so video can show one image per TTS chunk.
+
+    Returns:
+        (output_wav_path, total_duration_seconds, [(chunk_text, chunk_duration_seconds), ...])
+    """
+    try:
+        from google import genai
+    except ImportError as e:
+        raise ImportError(
+            "google-genai is required for TTS. Install with: pip install google-genai"
+        ) from e
+
+    key = api_key or os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise ValueError("GEMINI_API_KEY not set and no api_key provided")
+
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("text is required and cannot be empty")
+
+    output_path = Path(output_path).resolve()
+    if output_path.suffix.lower() != ".wav":
+        output_path = output_path.with_suffix(".wav")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    client = genai.Client(api_key=key)
+    voice_name = (voice_id or DEFAULT_VOICE_NAME).strip() or DEFAULT_VOICE_NAME
+    model_id = model_id or DEFAULT_MODEL_ID
+
+    chunks = _split_into_chunks(text, TTS_CHUNK_MAX_CHARS)
+    if not chunks:
+        raise ValueError("text is required and cannot be empty")
+
+    def report(pct: int) -> None:
+        if progress_callback:
+            progress_callback(pct)
+
+    report(0)
+    chunk_durations: list[tuple[str, float]] = []
+    all_frames = b""
+    n = len(chunks)
+    for i, chunk in enumerate(chunks):
+        if not chunk.strip():
+            continue
+        data = _tts_single_chunk(client, chunk, voice_name, model_id)
+        dur = _pcm_duration_seconds(len(data))
+        chunk_durations.append((chunk, dur))
+        all_frames += data
+        report(min(90, (i + 1) * 90 // n) if n else 0)
+
+    if not all_frames:
+        raise ValueError("Gemini TTS returned no audio")
+
+    with wave.open(str(output_path), "wb") as wf:
+        wf.setnchannels(GEMINI_TTS_CHANNELS)
+        wf.setsampwidth(GEMINI_TTS_SAMPLE_WIDTH)
+        wf.setframerate(GEMINI_TTS_SAMPLE_RATE)
+        wf.writeframes(all_frames)
+    report(100)
+
+    total_duration = _pcm_duration_seconds(len(all_frames))
+    return str(output_path), total_duration, chunk_durations

@@ -198,8 +198,12 @@ def build_briefing_video(
     Returns:
         Absolute path to the generated MP4 file.
     """
-    from app.models.podcast_generation import text_to_audio
-    from app.models.podcast_generation.tts_generator import DEFAULT_MODEL_ID, DEFAULT_VOICE_ID
+    from app.models.podcast_generation import text_to_audio_with_chunks
+    from app.models.podcast_generation.tts_generator import (
+        DEFAULT_MODEL_ID,
+        DEFAULT_VOICE_ID,
+        _split_into_chunks as tts_split_into_chunks,
+    )
 
     def report(pct: int) -> None:
         if progress_callback:
@@ -209,11 +213,8 @@ def build_briefing_video(
     if not summary:
         raise ValueError("summary is required and cannot be empty")
 
-    # Slide content: transcript from DB if provided, otherwise summary
+    # Slide content: transcript from DB if provided, otherwise summary (for cached-audio path)
     slide_text = (transcript_for_slides or "").strip() or summary
-    segments = _split_into_slides(slide_text)
-    if not segments:
-        segments = [summary[:500] if len(summary) > 500 else summary]
 
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -239,12 +240,26 @@ def build_briefing_video(
         report(0)
         # 1) Audio: use cached podcast WAV if provided, else TTS (0 -> 25%)
         cached_path = Path(cached_audio_path).resolve() if cached_audio_path else None
+        segments_list: list[str]
+        segment_durations: list[float]
+
         if cached_path and cached_path.is_file():
             shutil.copy2(cached_path, wav_path)
             report(25)
+            segments_list = tts_split_into_chunks(slide_text)
+            if not segments_list:
+                segments_list = [slide_text[:500] if len(slide_text) > 500 else slide_text]
+            audio_clip = AudioFileClip(str(wav_path))
+            total_duration = float(audio_clip.duration)
+            total_chars = sum(len(s) for s in segments_list)
+            segment_durations = [
+                (len(s) / total_chars) * total_duration if total_chars else total_duration / len(segments_list)
+                for s in segments_list
+            ]
+            segments = segments_list
         else:
             tts_cb = (lambda p: report((p * 25) // 100)) if progress_callback else None
-            text_to_audio(
+            wav_str, total_duration, chunk_list = text_to_audio_with_chunks(
                 summary,
                 wav_path,
                 voice_id=voice_id or DEFAULT_VOICE_ID,
@@ -252,23 +267,20 @@ def build_briefing_video(
                 progress_callback=tts_cb,
             )
             report(25)
+            segments = [text for text, _ in chunk_list]
+            segment_durations = [dur for _, dur in chunk_list]
+            audio_clip = AudioFileClip(str(wav_path))
+            total_duration = float(audio_clip.duration)
 
         if not wav_path.is_file():
             raise ValueError("Audio file not available (TTS or cached)")
-        audio_clip = AudioFileClip(str(wav_path))
-        total_duration = float(audio_clip.duration)
-        segments = _merge_segments_to_fit_duration(segments, total_duration)
 
-        # 2) Per-segment duration by character ratio (approximate sync to what’s being said)
-        total_chars = sum(len(s) for s in segments)
-        raw_durations = [
-            (len(s) / total_chars) * total_duration if total_chars else total_duration / len(segments)
-            for s in segments
-        ]
-        # Enforce minimum duration per slide, then re-normalize so total still matches audio
-        segment_durations = [max(d, MIN_SLIDE_DURATION) for d in raw_durations]
+        # Normalize: ensure we have segments and durations sum to total_duration
+        if not segments:
+            segments = [summary[:500] if len(summary) > 500 else summary]
+            segment_durations = [total_duration]
         seg_sum = sum(segment_durations)
-        if seg_sum > 0:
+        if seg_sum > 0 and abs(seg_sum - total_duration) > 0.01:
             segment_durations = [(d / seg_sum) * total_duration for d in segment_durations]
 
         # 3) One image per segment: generate image; on failure use text slideshow (gradient + segment text)
