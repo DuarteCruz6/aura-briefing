@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.config import settings, get_database_path
@@ -11,6 +11,19 @@ engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
 )
+
+# SQLite: WAL mode allows concurrent reads while one writer is active, so /preferences/topics
+# and other quick reads don't block behind long-running briefing generation.
+# busy_timeout: wait up to 10s for lock instead of failing with "database is locked".
+if "sqlite" in settings.database_url:
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=10000")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
