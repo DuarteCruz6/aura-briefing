@@ -62,7 +62,7 @@ const Auth = () => {
         className="w-full max-w-md relative z-10"
       >
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
+        <div className="flex items-center justify-center gap-1.5 mb-8">
           <img src={logo} alt="Unscrolling" className="h-20 object-contain" />
           <span className="font-display text-2xl font-bold text-foreground tracking-tight">Unscrolling</span>
         </div>
