@@ -233,7 +233,7 @@ const Index = () => {
                   <span className="hidden sm:inline">Premium</span>
                 </button>
                 <button
-                  onClick={() => setChatOpen(true)}
+                  onClick={() => setChatOpen(!chatOpen)}
                   className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-medium hover:bg-secondary/80 transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" />
