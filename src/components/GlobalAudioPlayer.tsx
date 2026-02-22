@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useAudio } from "../contexts/AudioContext";
 import { AudioPlayer } from "./AudioPlayer";
 
@@ -15,6 +16,20 @@ export function GlobalAudioPlayer() {
     hasNext,
     hasPrevious,
   } = useAudio();
+
+  // Spacebar toggles play/pause when audio is active (video popup handles its own space with capture)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== " " && e.code !== "Space") return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.closest("button") || t.closest("[contenteditable=true]")) return;
+      if (!currentTrack) return;
+      e.preventDefault();
+      setPlaying(!isPlaying);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [currentTrack, isPlaying, setPlaying]);
 
   if (!currentTrack) return null;
 

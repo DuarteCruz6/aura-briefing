@@ -20,8 +20,9 @@ const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { favourites } = useFavourites();
-  const { topics: apiTopics } = usePreferencesTopics();
-  const { sources } = useSources();
+  const { topics: apiTopics, loading: topicsLoading } = usePreferencesTopics();
+  const { sources, loading: sourcesLoading } = useSources();
+  const dataReady = !topicsLoading && !sourcesLoading;
   const favouriteLabels = [
     ...apiTopics.map((t) => t.topic),
     ...sources.map((s) => s.name || s.url),
@@ -240,7 +241,12 @@ const Index = () => {
               </div>
             </div>
 
-            {hasFavourites ? (
+            {!dataReady ? (
+              <div className="flex flex-col items-center justify-center py-24">
+                <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin mb-4" />
+                <p className="text-sm text-muted-foreground">Loading your interests…</p>
+              </div>
+            ) : hasFavourites ? (
               <>
                 <div className="space-y-3">
                   <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">

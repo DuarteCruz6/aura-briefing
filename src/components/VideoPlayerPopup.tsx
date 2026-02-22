@@ -52,6 +52,22 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
     return () => clearInterval(id);
   }, [status]);
 
+  // Spacebar toggles video play/pause when ready (capture so we handle before global audio)
+  useEffect(() => {
+    if (!open || status !== "ready") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== " " && e.code !== "Space") return;
+      const video = videoRef.current;
+      if (!video) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (video.paused) video.play();
+      else video.pause();
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [open, status]);
+
   // When popup opens with summary, start video generation (real progress via backend SSE)
   useEffect(() => {
     if (!open) return;
