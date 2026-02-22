@@ -1367,6 +1367,36 @@ def get_feed_by_topics(
     return {"topics": results}
 
 
+@app.get("/feed/youtube-by-topics")
+def get_youtube_feed_by_topics(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    max_per_topic: int = 5,
+):
+    """
+    Get recent YouTube videos based on the user's topic preferences (e.g. cars, ireland).
+    Uses YouTube Data API v3 search (order=date). Requires YOUTUBE_API_KEY.
+    Returns one list per topic with recent matching videos.
+    """
+    from app.services.youtube_by_topics import fetch_videos_by_topics
+
+    topics = [
+        p.topic
+        for p in db.query(UserTopicPreference)
+        .filter(UserTopicPreference.user_id == user_id)
+        .order_by(UserTopicPreference.created_at.desc())
+        .all()
+    ]
+    if not topics:
+        return {
+            "topics": [],
+            "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
+        }
+    max_per_topic = min(max(1, max_per_topic), 25)
+    results = fetch_videos_by_topics(topics, max_per_topic=max_per_topic)
+    return {"topics": results}
+
+
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 
 
