@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, RotateCcw, RotateCw, SkipBack, SkipForward, AlignLeft } from "lucide-react";
+import { Play, Pause, Volume2, RotateCcw, RotateCw, SkipBack, SkipForward, AlignLeft, RefreshCw } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { getTranscriptForTrack } from "../data/transcripts";
@@ -25,9 +25,11 @@ interface AudioPlayerProps {
   onSkipPrevious?: () => void;
   hasNext?: boolean;
   hasPrevious?: boolean;
+  /** Called to regenerate transcript (invalidate + re-generate briefing). Only show regenerate button when provided. */
+  onRegenerateTranscript?: () => Promise<void>;
 }
 
-export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPlayingChange, onSkipNext, onSkipPrevious, hasNext, hasPrevious }: AudioPlayerProps) {
+export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPlayingChange, onSkipNext, onSkipPrevious, hasNext, hasPrevious, onRegenerateTranscript }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -36,6 +38,7 @@ export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPl
   const [speedIndex, setSpeedIndex] = useState(2);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [personalTranscript, setPersonalTranscript] = useState<TranscriptSegment[] | null>(null);
+  const [regeneratingTranscript, setRegeneratingTranscript] = useState(false);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const isPersonalBriefing = briefingId === "combined-briefing";
@@ -289,6 +292,27 @@ export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPl
               title="Show transcript"
             >
               <AlignLeft className="w-4 h-4" />
+            </button>
+          )}
+          {/* Regenerate transcript: only when transcript has been downloaded (personal briefing with transcript) */}
+          {transcript && isPersonalBriefing && onRegenerateTranscript && (
+            <button
+              onClick={async () => {
+                if (regeneratingTranscript) return;
+                setRegeneratingTranscript(true);
+                try {
+                  await onRegenerateTranscript();
+                } catch {
+                  // Error surfaced by caller (e.g. toast)
+                } finally {
+                  setRegeneratingTranscript(false);
+                }
+              }}
+              disabled={regeneratingTranscript}
+              className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              title="Regenerate transcript"
+            >
+              <RefreshCw className={`w-4 h-4 ${regeneratingTranscript ? "animate-spin" : ""}`} />
             </button>
           )}
           <button onClick={cycleSpeed} className="text-xs font-medium text-muted-foreground w-10 text-center py-1 rounded-md bg-secondary hover:bg-secondary/80 transition-colors shrink-0">
