@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from urllib.parse import quote_plus
 
-from googlenewsdecoder import gnewsdecoder
+try:
+    from googlenewsdecoder import gnewsdecoder
+except ImportError:
+    gnewsdecoder = None  # optional: app works without it, URLs stay unresolved
 
 # User-Agent for Google News (polite scraping)
 USER_AGENT = "AuraBriefing/1.0 (Feed Reader; +https://github.com)"
@@ -18,8 +21,10 @@ def resolve_google_news_url(link: str) -> str:
     """
     Resolve news.google.com URLs to the real article URL using googlenewsdecoder.
     The library handles timeouts, proxies, and different formats internally.
-    Returns original link if resolution fails.
+    Returns original link if resolution fails or package is not installed.
     """
+    if gnewsdecoder is None:
+        return link
     try:
         decoded = gnewsdecoder(link)
         if decoded.get("status"):
