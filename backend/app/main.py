@@ -919,20 +919,31 @@ def post_chat(
         for s in sources
     ]
 
-    # Newest briefcast: most recent Run that has a Summary (content stored in DB)
+    # Prefer saved personal briefing transcript (script read for TTS); fallback to Run-based summary
     latest_briefing_summary: str | None = None
-    runs_with_summary = (
-        db.query(Run)
-        .options(joinedload(Run.summary))
-        .filter(Run.user_id == user_id)
-        .order_by(Run.started_at.desc())
-        .limit(20)
-        .all()
+    cached_personal = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == "personal",
+        )
+        .first()
     )
-    for run in runs_with_summary:
-        if run.summary and (run.summary.content or "").strip():
-            latest_briefing_summary = run.summary.content.strip()
-            break
+    if cached_personal and (cached_personal.transcript or "").strip():
+        latest_briefing_summary = cached_personal.transcript.strip()
+    else:
+        runs_with_summary = (
+            db.query(Run)
+            .options(joinedload(Run.summary))
+            .filter(Run.user_id == user_id)
+            .order_by(Run.started_at.desc())
+            .limit(20)
+            .all()
+        )
+        for run in runs_with_summary:
+            if run.summary and (run.summary.content or "").strip():
+                latest_briefing_summary = run.summary.content.strip()
+                break
 
     # Recent briefings from sources (titles) for extra context
     context_briefings: list[dict] = []

@@ -333,6 +333,16 @@ export const api = {
     }
     return res.blob();
   },
+
+  /** Get the saved transcript for the user's personal briefing. 404 if none. */
+  async getPersonalBriefingTranscript(): Promise<{ transcript: string }> {
+    const res = await fetch(url("/briefing/transcript"), { headers: authHeaders() });
+    if (!res.ok) {
+      if (res.status === 404) throw new Error("No transcript available");
+      throw new Error(`Failed to fetch transcript: ${res.status}`);
+    }
+    return res.json();
+  },
 };
 
 export interface SourceEntry {

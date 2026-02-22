@@ -315,6 +315,7 @@ const Index = () => {
         <AudioPlayer
           src={currentTrack?.src}
           trackTitle={currentTrack?.title}
+          briefingId={currentTrack?.id}
           externalPlaying={isPlaying}
           onPlayingChange={setIsPlaying}
           onSkipNext={handleSkipNext}

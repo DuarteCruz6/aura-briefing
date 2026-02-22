@@ -2,7 +2,9 @@ import { Play, Pause, Volume2, RotateCcw, RotateCw, SkipBack, SkipForward, Align
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { getTranscriptForTrack } from "../data/transcripts";
+import { TranscriptSegment } from "../data/transcripts";
 import { LyricsPanel } from "./LyricsPanel";
+import { api } from "../lib/api";
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -15,6 +17,8 @@ function formatTime(seconds: number): string {
 interface AudioPlayerProps {
   src?: string;
   trackTitle?: string;
+  /** When "combined-briefing", transcript is fetched from the API instead of static data. */
+  briefingId?: string;
   externalPlaying?: boolean;
   onPlayingChange?: (playing: boolean) => void;
   onSkipNext?: () => void;
@@ -23,7 +27,7 @@ interface AudioPlayerProps {
   hasPrevious?: boolean;
 }
 
-export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange, onSkipNext, onSkipPrevious, hasNext, hasPrevious }: AudioPlayerProps) {
+export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPlayingChange, onSkipNext, onSkipPrevious, hasNext, hasPrevious }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -31,9 +35,37 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
   const [volume, setVolume] = useState(0.7);
   const [speedIndex, setSpeedIndex] = useState(2);
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [personalTranscript, setPersonalTranscript] = useState<TranscriptSegment[] | null>(null);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const transcript = src ? getTranscriptForTrack(trackTitle) : null;
+  const isPersonalBriefing = briefingId === "combined-briefing";
+  const transcript: TranscriptSegment[] | null = src
+    ? isPersonalBriefing && personalTranscript
+      ? personalTranscript
+      : getTranscriptForTrack(trackTitle)
+    : null;
+
+  useEffect(() => {
+    if (!src || !isPersonalBriefing) {
+      setPersonalTranscript(null);
+      return;
+    }
+    let cancelled = false;
+    setPersonalTranscript(null);
+    api
+      .getPersonalBriefingTranscript()
+      .then(({ transcript: text }) => {
+        if (!cancelled && text?.trim()) {
+          setPersonalTranscript([{ id: 0, start: 0, end: 999999, text: text.trim() }]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPersonalTranscript(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [src, isPersonalBriefing]);
 
   useEffect(() => {
     const audio = audioRef.current;
