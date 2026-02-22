@@ -19,7 +19,9 @@ export function getSourceDisplayName(url: string, type: string): string {
   }
   if (type === "youtube") {
     const m = normalized.match(/youtube\.com\/(@[^/?#]+|channel\/[^/?#]+|c\/[^/?#]+|user\/[^/?#]+)/i);
-    return m ? m[1] : u;
+    if (!m) return u;
+    const segment = m[1];
+    return segment.startsWith("@") ? segment.slice(1) : segment;
   }
   return u;
 }
