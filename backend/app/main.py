@@ -1145,7 +1145,8 @@ def _get_briefing_urls(
                 if u and u not in urls:
                     urls.append(u)
                     break
-    return urls
+    # Never pass news.google.com into briefing/preview (so any occurrence = bug elsewhere, e.g. sources)
+    return [u for u in urls if "news.google.com" not in u]
 
 
 @app.post("/briefing/preview")

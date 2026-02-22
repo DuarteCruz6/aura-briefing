@@ -17,6 +17,14 @@ from app.config import settings
 # User-Agent for Google News (polite scraping)
 USER_AGENT = "AuraBriefing/1.0 (Feed Reader; +https://github.com)"
 
+# Hard block: never return or use these URLs (so any occurrence indicates a bug elsewhere)
+NEWS_GOOGLE_DOMAIN = "news.google.com"
+
+
+def _drop_news_google(articles: list[dict]) -> list[dict]:
+    """Remove any article whose url contains news.google.com. Makes it impossible for topic feed to expose them."""
+    return [a for a in articles if NEWS_GOOGLE_DOMAIN not in (a.get("url") or "")]
+
 
 def resolve_google_news_url(url: str) -> str:
     """
@@ -201,7 +209,7 @@ def fetch_articles_for_topic(
     if (settings.newsapi_api_key or "").strip():
         lang = (hl or "en-US").split("-")[0] if hl else "en"
         articles = _fetch_articles_newsapi(topic, max_articles=max_articles, language=lang)
-        return articles
+        return _drop_news_google(articles)
     # Fallback: Google News RSS only when no NewsAPI key (links may be news.google.com redirects)
     try:
         import feedparser
@@ -230,7 +238,7 @@ def fetch_articles_for_topic(
                 break
         source = (entry.get("source") or {}).get("title") if isinstance(entry.get("source"), dict) else None
         results.append({"url": link, "title": title, "published_at": published, "source": source})
-    return results
+    return _drop_news_google(results)
 
 
 def fetch_articles_by_topics(
@@ -251,13 +259,14 @@ def fetch_articles_by_topics(
         if not topic:
             continue
         articles = fetch_articles_for_topic(topic, max_articles=max_per_topic, hl=hl, gl=gl)
-        # Dedupe by URL across topics
+        # Dedupe by URL; never include news.google.com (double-check so any leak is obvious)
         deduped = []
         for a in articles:
             u = (a.get("url") or "").strip()
-            if u and u not in seen_urls:
-                seen_urls.add(u)
-                deduped.append(a)
+            if not u or NEWS_GOOGLE_DOMAIN in u or u in seen_urls:
+                continue
+            seen_urls.add(u)
+            deduped.append(a)
         result.append({"topic": topic, "articles": deduped})
 
     return result
