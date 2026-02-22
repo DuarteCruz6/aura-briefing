@@ -1527,7 +1527,7 @@ def get_x_feed_by_topics(
 ):
     """
     Get one recent X (Twitter) post per topic from the user's topic preferences.
-    Uses Nitter search RSS (no API key). Set NITTER_BASE_URL if the default instance is down.
+    Uses Apify (scraper_one/x-posts-search) when APIFY_API_TOKEN is set; otherwise falls back to Nitter search RSS.
     """
     from app.services.x_by_topics import fetch_posts_by_topics
 
