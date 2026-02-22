@@ -12,8 +12,15 @@ import Bookmarks from "./pages/Bookmarks";
 import Favourites from "./pages/Favourites";
 import NotFound from "./pages/NotFound";
 import { MobileNav } from "./components/MobileNav";
+import { ChatSidebar } from "./components/ChatSidebar";
+import { ChatProvider, useChat } from "./contexts/ChatContext";
 
 const queryClient = new QueryClient();
+
+function ChatSidebarGate() {
+  const { chatOpen, setChatOpen } = useChat();
+  return <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />;
+}
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -31,6 +38,7 @@ function AnimatedRoutes() {
         </Routes>
       </AnimatePresence>
       <MobileNav />
+      <ChatSidebarGate />
     </>
   );
 }
@@ -41,7 +49,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AnimatedRoutes />
+        <ChatProvider>
+          <AnimatedRoutes />
+        </ChatProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

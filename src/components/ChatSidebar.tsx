@@ -4,19 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import logo from "../assets/logo.png";
 import { api } from "../lib/api";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  sources?: string[];
-}
-
-const initialMessages: Message[] = [
-  {
-    role: "assistant",
-    content: "I'm your briefing assistant. Ask me anything about today's stories — I'll provide context and sources.",
-  },
-];
+import { useChat, type ChatMessage } from "../contexts/ChatContext";
 
 function isUrl(text: string): boolean {
   const t = text.trim();
@@ -61,14 +49,14 @@ function ThinkingAnimation() {
 }
 
 export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const { messages, setMessages } = useChat();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
-    const userMsg: Message = { role: "user", content: text };
+    const userMsg: ChatMessage = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
