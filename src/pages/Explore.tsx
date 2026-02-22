@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { SourcesSection } from "../components/SourcesSection";
-import { ArrowLeft, Search, Sparkles, TrendingUp, Heart, Newspaper, ExternalLink, Loader2, Youtube } from "lucide-react";
+import { ArrowLeft, Search, Sparkles, TrendingUp, Heart, Newspaper, ExternalLink, Loader2, Youtube, MapPin } from "lucide-react";
 import { useFavourites } from "../hooks/useFavourites";
 import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { toast } from "sonner";
@@ -144,31 +144,179 @@ const Explore = () => {
     <div className="flex h-screen w-full bg-background overflow-hidden">
       <AppSidebar activePage="explore" />
       <main className="flex-1 overflow-y-auto scrollbar-thin pb-24">
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-5xl mx-auto px-5 sm:px-6 py-6 sm:py-8">
           <button
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 group"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Home
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> Back to Home
           </button>
 
           {/* Hero */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-5 h-5 text-primary" />
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-10"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/15 text-primary">
+                <Sparkles className="w-4 h-4" />
+              </span>
               <span className="text-xs font-bold text-primary uppercase tracking-wider">Discover</span>
             </div>
-            <h1 className="font-display text-3xl font-bold text-foreground mb-2">Explore Your World</h1>
-            <p className="text-muted-foreground max-w-lg">
-              Curate your AI briefings — pick the topics and regions that matter most to you.
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-3 tracking-tight">
+              Explore your world
+            </h1>
+            <p className="text-muted-foreground max-w-xl text-base leading-relaxed">
+              Curate your AI briefings — pick topics and regions that matter to you, then get personalized articles and videos.
             </p>
           </motion.div>
 
-          {/* Trending Now */}
-          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-10">
+          {/* Topics + Regions: primary actions side by side on large screens */}
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 mb-10">
+            {/* Topics */}
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 }}
+              className="mb-0"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Topics</h2>
+              </div>
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={topicSearch}
+                  onChange={(e) => setTopicSearch(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter" && topicSearch.trim()) {
+                      const label = topicSearch.trim();
+                      if (isTopicSelected(label)) {
+                        toast.error("Already in your topics");
+                      } else {
+                        try {
+                          await addTopic(label);
+                          toast.success(`Added "${label}" to topics`);
+                          setTopicSearch("");
+                        } catch (err: unknown) {
+                          toast.error(err instanceof Error ? err.message : "Could not add topic");
+                        }
+                      }
+                    }
+                  }}
+                  placeholder="Search or add a topic..."
+                  className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
+                />
+              </div>
+              {showTopics ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredTopics.map((t, i) => (
+                    <motion.button
+                      key={t.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 + i * 0.02 }}
+                      onClick={() => toggleTopic(t.label)}
+                      className={`glass-panel relative rounded-xl p-4 text-left transition-all border group hover-lift border-border/30 hover:border-primary/30 hover:bg-primary/5 ${
+                        isTopicSelected(t.label) ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20" : ""
+                      }`}
+                    >
+                      <span className="text-2xl block mb-2">{t.emoji}</span>
+                      <p className="font-medium text-sm text-foreground">{t.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
+                      <span className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center">
+                        <Heart
+                          className={`w-3.5 h-3.5 transition-colors ${
+                            isTopicSelected(t.label) ? "fill-primary text-primary" : "text-muted-foreground group-hover:text-primary"
+                          }`}
+                        />
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-6 rounded-xl bg-secondary/30 border border-dashed border-border/50">
+                  No matching topics. Try another search or type a topic and press Enter.
+                </p>
+              )}
+            </motion.section>
+
+            {/* Regions */}
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin className="w-4 h-4 text-primary" />
+                <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Regions</h2>
+              </div>
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={regionSearch}
+                  onChange={(e) => setRegionSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && regionSearch.trim()) {
+                      const label = regionSearch.trim();
+                      const id = label.toLowerCase().replace(/\s+/g, "-");
+                      if (!isFavourite(id, "region")) {
+                        addFavourite({ id, type: "region", label, emoji: "📍" });
+                        toast.success(`Added "${label}" to favourites`);
+                        setRegionSearch("");
+                      } else {
+                        toast.error("Already in favourites");
+                      }
+                    }
+                  }}
+                  placeholder="Search or add a region..."
+                  className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
+                />
+              </div>
+              {showRegions ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredRegions.map((r, i) => (
+                    <motion.button
+                      key={r.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.14 + i * 0.02 }}
+                      onClick={() => toggleRegionFav({ id: r.id, type: "region", label: r.label, emoji: r.emoji, desc: r.desc })}
+                      className={`glass-panel relative rounded-xl p-4 text-left transition-all border group hover-lift border-border/30 hover:border-primary/30 hover:bg-primary/5 ${
+                        isFavourite(r.id, "region") ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20" : ""
+                      }`}
+                    >
+                      <span className="text-2xl block mb-2">{r.emoji}</span>
+                      <p className="font-medium text-sm text-foreground">{r.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{r.desc}</p>
+                      <span className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center">
+                        <Heart
+                          className={`w-3.5 h-3.5 transition-colors ${
+                            isFavourite(r.id, "region") ? "fill-primary text-primary" : "text-muted-foreground group-hover:text-primary"
+                          }`}
+                        />
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-6 rounded-xl bg-secondary/30 border border-dashed border-border/50">
+                  No matching regions. Try another search or type a region and press Enter.
+                </p>
+              )}
+            </motion.section>
+          </div>
+
+          {/* Trending Now - quick add */}
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="mb-10">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-primary" />
-              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Trending Now</h2>
+              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Trending now</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               {trendingNow.map((item, i) => {
@@ -176,10 +324,14 @@ const Explore = () => {
                 return (
                   <motion.button
                     key={item.label}
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2 + i * 0.05 }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                    transition={{ delay: 0.2 + i * 0.04 }}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-full border transition-all group hover-lift ${
+                      faved
+                        ? "border-primary/50 bg-primary/10 text-foreground shadow-[0_0_12px_hsl(var(--primary)/0.15)]"
+                        : "glass-panel border-border/50 hover:border-primary/40 hover:bg-primary/5"
+                    }`}
                     onClick={() => toggleTopic(item.label)}
                   >
                     <span className="text-base">{item.emoji}</span>
@@ -193,15 +345,21 @@ const Explore = () => {
           </motion.section>
 
           {/* Suggestions (feed by topics: YouTube + articles) */}
-          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-10">
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-10">
             <div className="flex items-center gap-2 mb-4">
               <Newspaper className="w-4 h-4 text-primary" />
               <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Suggestions for you</h2>
             </div>
             {apiTopics.length === 0 ? (
-              <div className="rounded-xl glass-panel border border-border/50 p-6 text-center">
-                <p className="text-sm text-muted-foreground mb-1">Add topics above to get personalized suggestions (articles and videos).</p>
-                <p className="text-xs text-muted-foreground">Suggestions are based on your saved topics.</p>
+              <div className="rounded-xl glass-panel border border-border/50 p-8 text-center">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                </div>
+                <p className="text-sm font-medium text-foreground mb-1">Add topics to unlock suggestions</p>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
+                  Pick topics above or from “Trending now” — we’ll suggest articles and videos tailored to your interests.
+                </p>
+                <p className="text-xs text-muted-foreground">Suggestions refresh based on your saved topics.</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -216,7 +374,7 @@ const Explore = () => {
                       <span className="text-sm">Loading video…</span>
                     </div>
                   ) : youtubeSuggestion?.video ? (
-                    <div className="rounded-xl glass-panel border border-border/50 overflow-hidden">
+                    <div className="rounded-xl glass-panel border border-border/50 overflow-hidden hover-lift">
                       {youtubeEmbedUrl(youtubeSuggestion.video.url) && (
                         <div className="aspect-video w-full">
                           <iframe
@@ -280,7 +438,7 @@ const Explore = () => {
                                   href={art.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-start gap-2 rounded-lg glass-panel border border-border/30 p-3 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left"
+                                  className="flex items-start gap-2 rounded-lg glass-panel border border-border/30 p-3 hover:border-primary/40 hover:bg-primary/5 hover-lift transition-all group text-left"
                                 >
                                   <span className="flex-1 min-w-0">
                                     <span className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary">{art.title}</span>
@@ -306,117 +464,6 @@ const Explore = () => {
 
           {/* Follow Sources */}
           <SourcesSection />
-
-          {/* Topics */}
-          <section className="mb-12">
-            <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Topics</h2>
-            <div className="relative mb-5">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                value={topicSearch}
-                onChange={(e) => setTopicSearch(e.target.value)}
-                onKeyDown={async (e) => {
-                  if (e.key === "Enter" && topicSearch.trim()) {
-                    const label = topicSearch.trim();
-                    if (isTopicSelected(label)) {
-                      toast.error("Already in your topics");
-                    } else {
-                      try {
-                        await addTopic(label);
-                        toast.success(`Added "${label}" to topics`);
-                        setTopicSearch("");
-                      } catch (err: unknown) {
-                        toast.error(err instanceof Error ? err.message : "Could not add topic");
-                      }
-                    }
-                  }
-                }}
-                placeholder="Search or add a topic..."
-                className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
-              />
-            </div>
-            {showTopics ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filteredTopics.map((t, i) => (
-                  <motion.div
-                    key={t.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="glass-panel relative rounded-xl p-4 text-left transition-all border group border-border/30 hover:border-border/60 hover:bg-secondary/30"
-                  >
-                    <span className="text-2xl block mb-2">{t.emoji}</span>
-                    <p className="font-medium text-sm text-foreground">{t.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
-                    <button
-                      onClick={() => toggleTopic(t.label)}
-                      className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                      title="Add to topics"
-                    >
-                      <Heart className={`w-3.5 h-3.5 transition-colors ${isTopicSelected(t.label) ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No matching topics found.</p>
-            )}
-          </section>
-
-          {/* Regions */}
-          <section className="mb-12">
-            <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Regions</h2>
-            <div className="relative mb-5">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                value={regionSearch}
-                onChange={(e) => setRegionSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && regionSearch.trim()) {
-                    const label = regionSearch.trim();
-                    const id = label.toLowerCase().replace(/\s+/g, "-");
-                    if (!isFavourite(id, "region")) {
-                      addFavourite({ id, type: "region", label, emoji: "📍" });
-                      toast.success(`Added "${label}" to favourites`);
-                      setRegionSearch("");
-                    } else {
-                      toast.error("Already in favourites");
-                    }
-                  }
-                }}
-                placeholder="Search or add a region..."
-                className="w-full h-10 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all text-sm"
-              />
-            </div>
-            {showRegions ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filteredRegions.map((r, i) => (
-                  <motion.div
-                    key={r.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="glass-panel relative rounded-xl p-4 text-left transition-all border group border-border/30 hover:border-border/60 hover:bg-secondary/30"
-                  >
-                    <span className="text-2xl block mb-2">{r.emoji}</span>
-                    <p className="font-medium text-sm text-foreground">{r.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{r.desc}</p>
-                    <button
-                      onClick={() => toggleRegionFav({ id: r.id, type: "region", label: r.label, emoji: r.emoji, desc: r.desc })}
-                      className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                      title="Add to favourites"
-                    >
-                      <Heart className={`w-3.5 h-3.5 transition-colors ${isFavourite(r.id, "region") ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No matching regions found.</p>
-            )}
-          </section>
         </div>
       </main>
     </div>
