@@ -1537,7 +1537,6 @@ def get_feed_by_topics(
     results = fetch_articles_by_topics(topics, max_per_topic=max_per_topic, hl=hl, gl=gl)
     return {"topics": results}
 
-
 @app.get("/feed/youtube-by-topics")
 def get_youtube_feed_by_topics(
     user_id: int = Depends(get_current_user_id),
