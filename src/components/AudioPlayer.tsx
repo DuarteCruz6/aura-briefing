@@ -56,6 +56,8 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
     if (!audio || !src) return;
     audio.src = src;
     audio.load();
+    audio.currentTime = 0;
+    setCurrentTime(0);
     audio.play().then(() => { setPlaying(true); onPlayingChange?.(true); }).catch(() => {});
   }, [src]);
 
