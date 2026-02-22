@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN mkdir -p /app/data
 
-# Railway injects PORT at runtime (e.g. 8080). Python reads it so no shell needed.
-EXPOSE 8000
+# Railway injects PORT at runtime (e.g. 8080). Default 8080 so health check port matches when unset.
+ENV PORT=8080
+EXPOSE 8080
 CMD ["python", "-u", "run.py"]
