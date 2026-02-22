@@ -79,15 +79,30 @@ def resolve_google_news_url(url: str) -> str:
                 timeout=10.0,
             )
             if resp.status_code == 200 and "garturlres" in resp.text:
-                marker = '["garturlres","'
-                idx = resp.text.find(marker)
+                idx = resp.text.find("garturlres")
                 if idx >= 0:
-                    start = idx + len(marker)
-                    end = resp.text.find('",', start)
-                    if end > start:
-                        res_url = resp.text[start:end].replace('\\"', '"')
-                        if res_url.startswith("http"):
+                    snippet = resp.text[idx : idx + 2000]
+                    # URL may be in "https://...\" or "https://...",
+                    match = re.search(r'"(https://[^"\\]*(?:\\.[^"\\]*)*)"', snippet)
+                    if match:
+                        res_url = match.group(1).replace('\\"', '"').replace("\\u003d", "=").replace("\\/", "/")
+                        if "news.google.com" not in res_url:
                             return res_url
+                    match = re.search(r'"(https://[^"]+)"', snippet)
+                    if match:
+                        res_url = match.group(1).replace("\\u003d", "=").replace("\\/", "/")
+                        if "news.google.com" not in res_url:
+                            return res_url
+    except Exception:
+        pass
+    # Fallback: try HTTP redirect (works for some Google News URLs)
+    try:
+        with httpx.Client(follow_redirects=True, timeout=8.0, headers={"User-Agent": USER_AGENT}) as client:
+            r = client.get(url)
+            if r.status_code == 200:
+                final = str(r.url)
+                if final.startswith("http") and "news.google.com" not in final:
+                    return final
     except Exception:
         pass
     return url
