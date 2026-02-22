@@ -158,7 +158,12 @@ const Index = () => {
       setIsPlaying(true);
       toast.success("Podcast ready!", { id: `gen-${title}` });
     } catch (err: any) {
-      toast.error(err.message || "Failed to generate podcast", { id: `gen-${title}` });
+      // Fallback to static sample audio when backend is unreachable
+      const fallback = "/audio/podcast.wav";
+      audioCache.current[title] = fallback;
+      setCurrentTrack({ src: fallback, title });
+      setIsPlaying(true);
+      toast.info("Using sample audio (backend unavailable)", { id: `gen-${title}` });
     } finally {
       setGeneratingAudio(null);
     }
