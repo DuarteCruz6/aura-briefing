@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { SourcesSection } from "../components/SourcesSection";
 import { ArrowLeft, Search, Sparkles, TrendingUp, Heart } from "lucide-react";
 import { useFavourites } from "../hooks/useFavourites";
+import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { toast } from "sonner";
 
 const topics = [
@@ -44,13 +45,32 @@ const Explore = () => {
   const [topicSearch, setTopicSearch] = useState("");
   const [regionSearch, setRegionSearch] = useState("");
   const { addFavourite, removeFavourite, isFavourite } = useFavourites();
+  const { topics: apiTopics, addTopic, removeTopic, isTopicSelected } = usePreferencesTopics();
 
-  const toggleFav = (item: { id: string; type: "topic" | "region" | "interest" | "source"; label: string; emoji?: string; desc?: string; url?: string; platform?: string }) => {
-    if (isFavourite(item.id, item.type)) {
-      removeFavourite(item.id, item.type);
+  const toggleTopic = async (label: string) => {
+    if (isTopicSelected(label)) {
+      const t = apiTopics.find((x) => x.topic.toLowerCase() === label.toLowerCase());
+      if (t) {
+        await removeTopic(t.id);
+        toast.success(`Removed "${label}" from topics`);
+      }
+    } else {
+      try {
+        await addTopic(label);
+        toast.success(`Added "${label}" to topics`);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Could not add topic";
+        toast.error(msg);
+      }
+    }
+  };
+
+  const toggleRegionFav = (item: { id: string; type: "region"; label: string; emoji?: string; desc?: string }) => {
+    if (isFavourite(item.id, "region")) {
+      removeFavourite(item.id, "region");
       toast.success(`Removed "${item.label}" from favourites`);
     } else {
-      addFavourite(item);
+      addFavourite({ ...item, type: "region" });
       toast.success(`Added "${item.label}" to favourites`);
     }
   };
@@ -100,7 +120,7 @@ const Explore = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {trendingNow.map((item, i) => {
-                const faved = isFavourite(item.id, "topic");
+                const faved = isTopicSelected(item.label);
                 return (
                   <motion.button
                     key={item.label}
@@ -108,7 +128,7 @@ const Explore = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.2 + i * 0.05 }}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group"
-                    onClick={() => toggleFav({ id: item.id, type: "topic", label: item.label, emoji: item.emoji })}
+                    onClick={() => toggleTopic(item.label)}
                   >
                     <span className="text-base">{item.emoji}</span>
                     <span className="text-sm font-medium text-foreground">{item.label}</span>
@@ -134,16 +154,20 @@ const Explore = () => {
                 type="text"
                 value={topicSearch}
                 onChange={(e) => setTopicSearch(e.target.value)}
-                onKeyDown={(e) => {
+                onKeyDown={async (e) => {
                   if (e.key === "Enter" && topicSearch.trim()) {
-                    const id = topicSearch.trim().toLowerCase().replace(/\s+/g, "-");
-                    if (!isFavourite(id, "topic")) {
-                      addFavourite({ id, type: "topic", label: topicSearch.trim(), emoji: "📌" });
-                      toast.success(`Added "${topicSearch.trim()}" to favourites`);
+                    const label = topicSearch.trim();
+                    if (isTopicSelected(label)) {
+                      toast.error("Already in your topics");
                     } else {
-                      toast.error("Already in favourites");
+                      try {
+                        await addTopic(label);
+                        toast.success(`Added "${label}" to topics`);
+                        setTopicSearch("");
+                      } catch (err: unknown) {
+                        toast.error(err instanceof Error ? err.message : "Could not add topic");
+                      }
                     }
-                    setTopicSearch("");
                   }
                 }}
                 placeholder="Search or add a topic..."
@@ -164,11 +188,11 @@ const Explore = () => {
                     <p className="font-medium text-sm text-foreground">{t.label}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
                     <button
-                      onClick={() => toggleFav({ id: t.id, type: "topic", label: t.label, emoji: t.emoji, desc: t.desc })}
+                      onClick={() => toggleTopic(t.label)}
                       className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                      title="Add to favourites"
+                      title="Add to topics"
                     >
-                      <Heart className={`w-3.5 h-3.5 transition-colors ${isFavourite(t.id, "topic") ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                      <Heart className={`w-3.5 h-3.5 transition-colors ${isTopicSelected(t.label) ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
                     </button>
                   </motion.div>
                 ))}
@@ -189,14 +213,15 @@ const Explore = () => {
                 onChange={(e) => setRegionSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && regionSearch.trim()) {
-                    const id = regionSearch.trim().toLowerCase().replace(/\s+/g, "-");
+                    const label = regionSearch.trim();
+                    const id = label.toLowerCase().replace(/\s+/g, "-");
                     if (!isFavourite(id, "region")) {
-                      addFavourite({ id, type: "region", label: regionSearch.trim(), emoji: "📍" });
-                      toast.success(`Added "${regionSearch.trim()}" to favourites`);
+                      addFavourite({ id, type: "region", label, emoji: "📍" });
+                      toast.success(`Added "${label}" to favourites`);
+                      setRegionSearch("");
                     } else {
                       toast.error("Already in favourites");
                     }
-                    setRegionSearch("");
                   }
                 }}
                 placeholder="Search or add a region..."
@@ -217,7 +242,7 @@ const Explore = () => {
                     <p className="font-medium text-sm text-foreground">{r.label}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{r.desc}</p>
                     <button
-                      onClick={() => toggleFav({ id: r.id, type: "region", label: r.label, emoji: r.emoji, desc: r.desc })}
+                      onClick={() => toggleRegionFav({ id: r.id, type: "region", label: r.label, emoji: r.emoji, desc: r.desc })}
                       className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
                       title="Add to favourites"
                     >

@@ -5,6 +5,8 @@ import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { useFavourites } from "../hooks/useFavourites";
+import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
+import { useSources } from "../hooks/useSources";
 import { TodaysBriefing } from "../components/TodaysBriefing";
 import { BriefingCard } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
@@ -18,7 +20,14 @@ const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { favourites } = useFavourites();
-  const hasFavourites = favourites.length > 0;
+  const { topics: apiTopics } = usePreferencesTopics();
+  const { sources } = useSources();
+  const favouriteLabels = [
+    ...apiTopics.map((t) => t.topic),
+    ...sources.map((s) => s.name || s.url),
+    ...favourites.map((f) => f.label),
+  ];
+  const hasFavourites = favouriteLabels.length > 0;
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
@@ -79,14 +88,14 @@ const Index = () => {
   const favouriteBriefings = hasFavourites ? [{
     id: "combined-briefing",
     title: `Your ${freqLabel} Briefing`,
-    description: `Covering ${favourites.map(f => f.label).join(", ")}`,
-    duration: `${5 + favourites.length * 2} min`,
-    topics: favourites.map(f => f.label).slice(0, 4),
+    description: `Covering ${favouriteLabels.join(", ")}`,
+    duration: `${5 + favouriteLabels.length * 2} min`,
+    topics: favouriteLabels.slice(0, 4),
     confidence: 85,
-    summary: `Your personalized podcast briefing covering the latest developments in ${favourites.map(f => f.label).join(", ")}.`,
+    summary: `Your personalized podcast briefing covering the latest developments in ${favouriteLabels.join(", ")}.`,
     icon: <Headphones className="w-5 h-5" />,
     audioUrl: "",
-    generateText: `Give me a comprehensive briefing covering the latest news and developments in: ${favourites.map(f => f.label).join(", ")}. Keep it informative and engaging, like a podcast host.`,
+    generateText: `Give me a comprehensive briefing covering the latest news and developments in: ${favouriteLabels.join(", ")}. Keep it informative and engaging, like a podcast host.`,
     generateUrls: undefined as string[] | undefined,
   }] : [];
 

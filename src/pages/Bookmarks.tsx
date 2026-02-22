@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bookmark, Clock, TrendingUp, Trash2 } from "lucide-react";
+import { ArrowLeft, Bookmark, Clock, TrendingUp, Trash2, Loader2 } from "lucide-react";
 import { useBookmarks } from "../hooks/useBookmarks";
 
 const Bookmarks = () => {
   const navigate = useNavigate();
-  const { bookmarks, removeBookmark } = useBookmarks();
+  const { bookmarks, removeBookmark, loading } = useBookmarks();
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
@@ -30,7 +30,12 @@ const Bookmarks = () => {
             Your saved briefings — {bookmarks.length} saved
           </p>
 
-          {bookmarks.length === 0 ? (
+          {loading ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel p-12 text-center">
+              <Loader2 className="w-8 h-8 mx-auto mb-4 text-primary animate-spin" />
+              <p className="text-muted-foreground">Loading your bookmarks…</p>
+            </motion.div>
+          ) : bookmarks.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -48,7 +53,7 @@ const Bookmarks = () => {
             <div className="space-y-3">
               {bookmarks.map((b, i) => (
                 <motion.div
-                  key={b.title}
+                  key={b.id}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
@@ -57,10 +62,10 @@ const Bookmarks = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-display font-semibold text-foreground">{b.title}</h3>
-                      <p className="text-sm text-muted-foreground">{b.description}</p>
+                      <p className="text-sm text-muted-foreground">{b.description ?? ""}</p>
                     </div>
                     <button
-                      onClick={() => removeBookmark(b.title)}
+                      onClick={() => removeBookmark(b.id)}
                       className="w-9 h-9 rounded-full bg-destructive/10 flex items-center justify-center text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -68,14 +73,11 @@ const Bookmarks = () => {
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> {b.duration}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" /> {b.confidence}% confidence
+                      <Clock className="w-3.5 h-3.5" /> {b.duration ?? "—"}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-3">
-                    {b.topics.map((topic) => (
+                    {(b.topics ?? []).map((topic) => (
                       <span key={topic} className="px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium">
                         {topic}
                       </span>

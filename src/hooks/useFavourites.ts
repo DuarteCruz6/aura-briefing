@@ -1,8 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useAuth } from "./useAuth";
 
+/** Local-only favourites: region and interest. Topic and source come from API (usePreferencesTopics, useSources). */
 export interface FavouriteItem {
   id: string;
-  type: "topic" | "region" | "interest" | "source";
+  type: "region" | "interest";
   label: string;
   emoji?: string;
   desc?: string;
@@ -10,39 +12,55 @@ export interface FavouriteItem {
   platform?: string;
 }
 
-const STORAGE_KEY = "briefcast_favourites";
+const STORAGE_PREFIX = "briefcast_favourites_local_";
 
-function load(): FavouriteItem[] {
+function storageKey(email: string | undefined): string {
+  return `${STORAGE_PREFIX}${email ?? "guest"}`;
+}
+
+function load(key: string): FavouriteItem[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    return JSON.parse(localStorage.getItem(key) || "[]");
   } catch {
     return [];
   }
 }
 
-function save(items: FavouriteItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+function save(key: string, items: FavouriteItem[]) {
+  localStorage.setItem(key, JSON.stringify(items));
 }
 
 export function useFavourites() {
-  const [favourites, setFavourites] = useState<FavouriteItem[]>(load);
+  const { user } = useAuth();
+  const key = storageKey(user?.email);
+  const [favourites, setFavourites] = useState<FavouriteItem[]>(() => load(key));
 
-  const addFavourite = useCallback((item: FavouriteItem) => {
-    setFavourites((prev) => {
-      if (prev.some((f) => f.id === item.id && f.type === item.type)) return prev;
-      const next = [...prev, item];
-      save(next);
-      return next;
-    });
-  }, []);
+  useEffect(() => {
+    setFavourites(load(key));
+  }, [key]);
 
-  const removeFavourite = useCallback((id: string, type: string) => {
-    setFavourites((prev) => {
-      const next = prev.filter((f) => !(f.id === id && f.type === type));
-      save(next);
-      return next;
-    });
-  }, []);
+  const addFavourite = useCallback(
+    (item: FavouriteItem) => {
+      setFavourites((prev) => {
+        if (prev.some((f) => f.id === item.id && f.type === item.type)) return prev;
+        const next = [...prev, item];
+        save(key, next);
+        return next;
+      });
+    },
+    [key]
+  );
+
+  const removeFavourite = useCallback(
+    (id: string, type: string) => {
+      setFavourites((prev) => {
+        const next = prev.filter((f) => !(f.id === id && f.type === type));
+        save(key, next);
+        return next;
+      });
+    },
+    [key]
+  );
 
   const isFavourite = useCallback(
     (id: string, type: string) => favourites.some((f) => f.id === id && f.type === type),

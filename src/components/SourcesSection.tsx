@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Youtube, Linkedin, Twitter } from "lucide-react";
+import { Plus, Youtube, Linkedin, Twitter, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useFavourites } from "../hooks/useFavourites";
+import { useSources } from "../hooks/useSources";
 
 const platforms = [
   { id: "youtube", label: "YouTube", icon: Youtube, color: "text-red-500", placeholder: "e.g. https://youtube.com/@MrBeast" },
@@ -13,29 +13,32 @@ const platforms = [
 export const SourcesSection = () => {
   const [activePlatform, setActivePlatform] = useState<string>("youtube");
   const [sourceUrl, setSourceUrl] = useState("");
-  const { addFavourite, isFavourite } = useFavourites();
+  const [adding, setAdding] = useState(false);
+  const { sources, addSource, deleteSource, isSourceAdded, loading } = useSources();
 
   const handlePlatformSwitch = (platformId: string) => {
     setActivePlatform(platformId);
     setSourceUrl("");
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const trimmed = sourceUrl.trim();
     if (!trimmed) return;
-    if (isFavourite(trimmed, "source")) {
-      toast.error("You've already added this source");
+    if (isSourceAdded(trimmed)) {
+      toast.error("You're already following this source");
       return;
     }
-    addFavourite({
-      id: trimmed,
-      type: "source",
-      label: trimmed.split("/").pop() || trimmed,
-      url: trimmed,
-      platform: activePlatform,
-    });
-    setSourceUrl("");
-    toast.success("Source added to favourites!");
+    setAdding(true);
+    try {
+      await addSource({ type: activePlatform, url: trimmed, name: trimmed.split("/").pop() || undefined });
+      setSourceUrl("");
+      toast.success("Source added!");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not add source";
+      toast.error(msg);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const platformMeta = platforms.find((p) => p.id === activePlatform)!;
@@ -85,12 +88,39 @@ export const SourcesSection = () => {
         />
         <button
           onClick={handleAdd}
-          disabled={!sourceUrl.trim()}
+          disabled={!sourceUrl.trim() || adding}
           className="h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
-          <Plus className="w-4 h-4" /> Add
+          {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          Add
         </button>
       </div>
+
+      {/* Followed sources list */}
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading sources…
+        </div>
+      ) : sources.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Following ({sources.length})</p>
+          {sources.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-secondary/30 border border-border/30"
+            >
+              <span className="text-sm text-foreground truncate">{s.name || s.url}</span>
+              <button
+                onClick={() => deleteSource(s.id)}
+                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Unfollow"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </motion.section>
   );
 };
