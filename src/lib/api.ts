@@ -82,7 +82,22 @@ export const api = {
     return res.json();
   },
 
-  /** Get or create user by email (call after login/signup). */
+  /** Log in: return user only if account exists. Fails with 401 if no account. */
+  async login(payload: { email: string }): Promise<AuthUser> {
+    const res = await fetch(url("/auth/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: payload.email.trim().toLowerCase() }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = Array.isArray(err.detail) ? err.detail[0]?.msg : err.detail;
+      throw new Error(typeof msg === "string" ? msg : "Invalid email or password");
+    }
+    return res.json();
+  },
+
+  /** Get or create user by email (call after signup only). */
   async getAuthMe(payload: { email: string; name?: string }): Promise<AuthUser> {
     const res = await fetch(url("/auth/me"), {
       method: "POST",

@@ -101,9 +101,14 @@ class UserCreateRequest(BaseModel):
 
 
 class AuthMeRequest(BaseModel):
-    """Identify or create user by email (used by frontend auth)."""
+    """Identify or create user by email (used by frontend signup)."""
     email: str
     name: str | None = None
+
+
+class AuthLoginRequest(BaseModel):
+    """Login: email only; user must already exist."""
+    email: str
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -504,7 +509,40 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-## ─── Auth (get-or-create by email) ─────────────────────────────────────────
+## ─── Auth ─────────────────────────────────────────────────────────────────
+
+@app.options("/auth/login")
+def auth_login_options(request: Request):
+    """CORS preflight for POST /auth/login."""
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        status_code=200,
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, X-User-Email",
+            "Access-Control-Max-Age": "600",
+        },
+    )
+
+
+@app.post("/auth/login")
+def auth_login(body: AuthLoginRequest, db: Session = Depends(get_db)):
+    """Log in: return user only if they exist. Does not create users. Use /auth/me for signup."""
+    email = (body.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="No account found with this email. Sign up first.")
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
 
 @app.options("/auth/me")
 def auth_me_options(request: Request):

@@ -24,10 +24,12 @@ const Auth = () => {
     }
     setLoading(true);
     try {
-      const user = await api.getAuthMe({
-        email: trimmedEmail,
-        name: (name || trimmedEmail.split("@")[0]).trim() || undefined,
-      });
+      const user = isLogin
+        ? await api.login({ email: trimmedEmail })
+        : await api.getAuthMe({
+            email: trimmedEmail,
+            name: (name || trimmedEmail.split("@")[0]).trim() || undefined,
+          });
       if (!user?.email) {
         toast.error("Invalid response from server");
         return;
