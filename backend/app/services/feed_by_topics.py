@@ -7,24 +7,13 @@ them to actual article URLs so get_or_extract_summary can fetch the real content
 from __future__ import annotations
 
 import base64
-import logging
 import re
 from urllib.parse import quote_plus
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 # User-Agent for Google News (polite scraping)
 USER_AGENT = "AuraBriefing/1.0 (Feed Reader; +https://github.com)"
-
-# Hard block: never return or use these URLs (so any occurrence indicates a bug elsewhere)
-NEWS_GOOGLE_DOMAIN = "news.google.com"
-
-
-def _drop_news_google(articles: list[dict]) -> list[dict]:
-    """Remove any article whose url contains news.google.com. Makes it impossible for topic feed to expose them."""
-    return [a for a in articles if NEWS_GOOGLE_DOMAIN not in (a.get("url") or "")]
 
 
 def resolve_google_news_url(url: str) -> str:
@@ -106,29 +95,14 @@ def resolve_google_news_url(url: str) -> str:
                             return res_url
     except Exception:
         pass
-    # Fallback: fetch the article page and extract real URL from redirect / HTML / JS
+    # Fallback: try HTTP redirect (works for some Google News URLs)
     try:
-        with httpx.Client(follow_redirects=True, timeout=10.0, headers={"User-Agent": USER_AGENT}) as client:
+        with httpx.Client(follow_redirects=True, timeout=8.0, headers={"User-Agent": USER_AGENT}) as client:
             r = client.get(url)
-            if r.status_code != 200:
-                raise ValueError("non-200")
-            text = r.text or ""
-            # 1. data-n-url (common on Google News intermediate pages)
-            match = re.search(r'data-n-url="([^"]+)"', text)
-            if match:
-                res_url = match.group(1).strip()
-                if res_url.startswith("http") and "news.google.com" not in res_url:
-                    return res_url
-            # 2. JavaScript window.location redirect
-            match = re.search(r'window\.location\.replace\([\'"]([^\'"]+)[\'"]\)', text)
-            if match:
-                res_url = match.group(1).strip()
-                if res_url.startswith("http") and "news.google.com" not in res_url:
-                    return res_url
-            # 3. Standard HTTP redirect (if we ended up on a different host)
-            final = str(r.url)
-            if final.startswith("http") and "news.google.com" not in final:
-                return final
+            if r.status_code == 200:
+                final = str(r.url)
+                if final.startswith("http") and "news.google.com" not in final:
+                    return final
     except Exception:
         pass
     return url
@@ -142,43 +116,6 @@ def _build_google_news_rss_url(topic: str, hl: str = "en-US", gl: str = "US", ce
     return f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
-def _fetch_articles_bing_rss(topic: str, max_articles: int = 10) -> list[dict]:
-    """
-    Fetch articles via Bing News RSS (no API key). Item links may be direct or go through Bing.
-    Returns list of {url, title, published_at, source}. Returns [] on error.
-    """
-    topic = (topic or "").strip()
-    if not topic:
-        return []
-    try:
-        import feedparser
-    except ImportError:
-        return []
-    url = "https://www.bing.com/news/search?q=" + quote_plus(topic) + "&format=RSS"
-    try:
-        parsed = feedparser.parse(url, request_headers={"User-Agent": USER_AGENT})
-    except Exception:
-        return []
-    entries = getattr(parsed, "entries", [])[:max_articles]
-    results = []
-    for entry in entries:
-        link = (entry.get("link") or entry.get("href") or "").strip()
-        if not link:
-            continue
-        if "news.google.com" in link:
-            continue
-        title = entry.get("title") or ""
-        published = None
-        for key in ("published", "updated", "created"):
-            if key in entry and entry[key]:
-                p = entry[key]
-                published = p.isoformat() if hasattr(p, "isoformat") else str(p)
-                break
-        source = (entry.get("source") or {}).get("title") if isinstance(entry.get("source"), dict) else None
-        results.append({"url": link, "title": title, "published_at": published, "source": source})
-    return _drop_news_google(results)
-
-
 def fetch_articles_for_topic(
     topic: str,
     max_articles: int = 10,
@@ -186,17 +123,12 @@ def fetch_articles_for_topic(
     gl: str = "US",
 ) -> list[dict]:
     """
-    Fetch articles for a single topic. Tries Bing News RSS first (no key), then Google News RSS.
+    Fetch articles from Google News RSS for a single topic.
     Returns list of {url, title, published_at, source}.
     """
     topic = (topic or "").strip()
     if not topic:
         return []
-    # 1) Bing News RSS – no API key
-    articles = _fetch_articles_bing_rss(topic, max_articles=max_articles)
-    if articles:
-        return articles
-    # 2) Google News RSS – links may be news.google.com redirects
     try:
         import feedparser
     except ImportError:
@@ -224,7 +156,7 @@ def fetch_articles_for_topic(
                 break
         source = (entry.get("source") or {}).get("title") if isinstance(entry.get("source"), dict) else None
         results.append({"url": link, "title": title, "published_at": published, "source": source})
-    return _drop_news_google(results)
+    return results
 
 
 def fetch_articles_by_topics(
@@ -245,14 +177,13 @@ def fetch_articles_by_topics(
         if not topic:
             continue
         articles = fetch_articles_for_topic(topic, max_articles=max_per_topic, hl=hl, gl=gl)
-        # Dedupe by URL; never include news.google.com (double-check so any leak is obvious)
+        # Dedupe by URL across topics
         deduped = []
         for a in articles:
             u = (a.get("url") or "").strip()
-            if not u or NEWS_GOOGLE_DOMAIN in u or u in seen_urls:
-                continue
-            seen_urls.add(u)
-            deduped.append(a)
+            if u and u not in seen_urls:
+                seen_urls.add(u)
+                deduped.append(a)
         result.append({"topic": topic, "articles": deduped})
-
+    
     return result
