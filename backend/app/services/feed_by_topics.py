@@ -8,15 +8,12 @@ from __future__ import annotations
 
 import base64
 import re
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 
 import httpx
 
-# User-Agent for Google News (polite scraping); browser-like helps HTML fallback
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-)
+# User-Agent for Google News (polite scraping)
+USER_AGENT = "AuraBriefing/1.0 (Feed Reader; +https://github.com)"
 
 
 def resolve_google_news_url(url: str) -> str:
@@ -82,66 +79,23 @@ def resolve_google_news_url(url: str) -> str:
                 timeout=10.0,
             )
             if resp.status_code == 200 and "garturlres" in resp.text:
-                # Response format: ...["garturlres","https://real-url.com/..."],...
-                idx = resp.text.find('["garturlres","')
-                if idx >= 0:
-                    start = idx + len('["garturlres","')
-                    end = start
-                    while end < len(resp.text):
-                        c = resp.text[end]
-                        if c == "\\" and end + 1 < len(resp.text):
-                            end += 2  # skip escaped char
-                            continue
-                        if c in ('"', ",", "]"):
-                            break
-                        end += 1
-                    res_url = resp.text[start:end].replace("\\u003d", "=").replace("\\/", "/").strip()
-                    if res_url.startswith("http") and "news.google.com" not in res_url:
-                        return res_url
-                # Legacy regex fallback
                 idx = resp.text.find("garturlres")
                 if idx >= 0:
                     snippet = resp.text[idx : idx + 2000]
-                    for pattern in (r'"(https://[^"\\]*(?:\\.[^"\\]*)*)"', r'"(https://[^"]+)"'):
-                        match = re.search(pattern, snippet)
-                        if match:
-                            res_url = match.group(1).replace("\\u003d", "=").replace("\\/", "/")
-                            if "news.google.com" not in res_url:
-                                return res_url
+                    # URL may be in "https://...\" or "https://...",
+                    match = re.search(r'"(https://[^"\\]*(?:\\.[^"\\]*)*)"', snippet)
+                    if match:
+                        res_url = match.group(1).replace('\\"', '"').replace("\\u003d", "=").replace("\\/", "/")
+                        if "news.google.com" not in res_url:
+                            return res_url
+                    match = re.search(r'"(https://[^"]+)"', snippet)
+                    if match:
+                        res_url = match.group(1).replace("\\u003d", "=").replace("\\/", "/")
+                        if "news.google.com" not in res_url:
+                            return res_url
     except Exception:
         pass
-    # Fallback: fetch the Google News article page and extract real URL from HTML
-    try:
-        res = httpx.get(url, follow_redirects=True, timeout=10.0, headers={"User-Agent": USER_AGENT})
-        if res.status_code == 200 and res.url and "news.google.com" not in str(res.url):
-            return str(res.url)
-        html = res.text if res.status_code == 200 else ""
-        if html:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(html, "html.parser")
-            # Prefer canonical if it points to the real article
-            canonical = soup.find("link", rel="canonical")
-            if canonical and canonical.get("href"):
-                h = canonical["href"].strip()
-                if h.startswith("http") and "news.google.com" not in h:
-                    return h
-            # Look for the "Read full story" or first external article link
-            for a in soup.find_all("a", href=True):
-                h = a["href"].strip()
-                if not h.startswith("http"):
-                    continue
-                try:
-                    parsed = urlparse(h)
-                    if "google.com" in parsed.netloc or "google." in parsed.netloc:
-                        continue
-                    if any(x in parsed.path.lower() for x in ("/login", "/signin", "/account", "/search")):
-                        continue
-                    return h
-                except Exception:
-                    continue
-    except Exception:
-        pass
-    # Last resort: HTTP redirect (works for some URLs)
+    # Fallback: try HTTP redirect (works for some Google News URLs)
     try:
         with httpx.Client(follow_redirects=True, timeout=8.0, headers={"User-Agent": USER_AGENT}) as client:
             r = client.get(url)
@@ -231,4 +185,29 @@ def fetch_articles_by_topics(
                 seen_urls.add(u)
                 deduped.append(a)
         result.append({"topic": topic, "articles": deduped})
+
+    # Fallback: try HTTP GET and parse the JS/HTML for the real URL
+    try:
+        with httpx.Client(follow_redirects=True, timeout=10.0, headers={"User-Agent": USER_AGENT}) as client:
+            r = client.get(url)
+            
+            # 1. Check for data-n-url (very common on Google News intermediate pages)
+            match = re.search(r'data-n-url="([^"]+)"', r.text)
+            if match:
+                return match.group(1)
+            
+            # 2. Check for JavaScript window.location redirect
+            match = re.search(r'window\.location\.replace\([\'"]([^\'"]+)[\'"]\)', r.text)
+            if match:
+                return match.group(1)
+                
+            # 3. Check if standard HTTP redirect actually happened (rare nowadays, but good to keep)
+            final = str(r.url)
+            if final.startswith("http") and "news.google.com" not in final:
+                return final
+    except Exception:
+        pass
+        
+    return url
+    
     return result
