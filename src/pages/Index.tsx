@@ -15,6 +15,7 @@ import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
 import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
 import { api } from "../lib/api";
+import { getSourceDisplayName } from "../lib/utils";
 
 const Index = () => {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ const Index = () => {
   const dataReady = !topicsLoading && !sourcesLoading;
   const favouriteLabels = [
     ...apiTopics.map((t) => t.topic),
-    ...sources.map((s) => s.name || s.url),
+    ...sources.map((s) => s.name || getSourceDisplayName(s.url ?? "", s.type)),
     ...favourites.map((f) => f.label),
   ];
   const hasFavourites = favouriteLabels.length > 0;

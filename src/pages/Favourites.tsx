@@ -5,6 +5,7 @@ import { ArrowLeft, Heart, X, ExternalLink, Sparkles, Loader2 } from "lucide-rea
 import { useFavourites, type FavouriteItem } from "../hooks/useFavourites";
 import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { useSources } from "../hooks/useSources";
+import { getSourceDisplayName } from "../lib/utils";
 import { toast } from "sonner";
 
 const typeLabels: Record<string, { label: string; color: string }> = {
@@ -168,7 +169,7 @@ const Favourites = () => {
                       className="glass-panel rounded-xl border border-border/30 p-4 flex items-start gap-3 group hover:border-border/60 transition-all"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground truncate">{s.name || s.url}</p>
+                        <p className="font-medium text-sm text-foreground truncate">{s.name || getSourceDisplayName(s.url ?? "", s.type)}</p>
                         <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline mt-1 truncate">
                           <ExternalLink className="w-3 h-3 shrink-0" />
                           <span className="truncate">{s.url}</span>

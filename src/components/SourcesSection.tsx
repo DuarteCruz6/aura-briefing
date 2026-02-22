@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Plus, Youtube, Linkedin, Twitter, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSources } from "../hooks/useSources";
+import { getSourceDisplayName } from "../lib/utils";
 
 const platforms = [
   { id: "youtube", label: "YouTube", icon: Youtube, color: "text-red-500", placeholder: "e.g. https://youtube.com/@MrBeast" },
@@ -60,9 +61,10 @@ export const SourcesSection = () => {
       return;
     }
     const normalizedUrl = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+    const displayName = getSourceDisplayName(normalizedUrl, activePlatform);
     setAdding(true);
     try {
-      await addSource({ type: activePlatform, url: normalizedUrl, name: normalizedUrl.split("/").pop()?.replace(/\?.*$/, "") || undefined });
+      await addSource({ type: activePlatform, url: normalizedUrl, name: displayName });
       setSourceUrl("");
       toast.success("Source added!");
     } catch (err: unknown) {
@@ -141,7 +143,7 @@ export const SourcesSection = () => {
               key={s.id}
               className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-secondary/30 border border-border/30"
             >
-              <span className="text-sm text-foreground truncate">{s.name || s.url}</span>
+              <span className="text-sm text-foreground truncate">{s.name || getSourceDisplayName(s.url ?? "", s.type)}</span>
               <button
                 onClick={() => deleteSource(s.id)}
                 className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
