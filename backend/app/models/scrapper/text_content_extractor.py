@@ -69,9 +69,10 @@ def _strip_html_to_text(html: str) -> str:
 
 
 def _extract_with_gemini(raw_text: str, url: str, *, api_key: str, model: str | None = None) -> dict | None:
-    """Use Gemini to extract title and main text from raw page text."""
-    import google.generativeai as genai  # type: ignore[import-untyped]
-    genai.configure(api_key=api_key)
+    """Use Gemini to extract title and main text from raw page text (google.genai SDK)."""
+    from google import genai
+    from google.genai import types
+
     if model is None:
         try:
             from app.config import settings
@@ -92,10 +93,11 @@ Output only the JSON object, no markdown or explanation."""
     if not truncated.strip():
         return {"title": "", "text": ""}
 
-    gemini_model = genai.GenerativeModel(model)
-    response = gemini_model.generate_content(
-        f"{prompt}\n\nURL: {url}\n\nPage text:\n\n{truncated}",
-        generation_config={"max_output_tokens": 8192},
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model,
+        contents=f"{prompt}\n\nURL: {url}\n\nPage text:\n\n{truncated}",
+        config=types.GenerateContentConfig(max_output_tokens=8192),
     )
     out = (response.text or "").strip()
     if not out:
