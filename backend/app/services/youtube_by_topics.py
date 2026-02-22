@@ -13,8 +13,8 @@ try:
 except Exception:
     settings = None
 
-# Minimum view count to consider a video "reasonable"; fallback to most recent if none pass
-MIN_VIEWS_DEFAULT = 1000
+# Minimum view count to consider a video "reasonable"; fallback to highest-viewed candidate if none pass
+MIN_VIEWS_DEFAULT = 10000
 # How many recent candidates to fetch before filtering by views
 SEARCH_CANDIDATES = 15
 
@@ -138,7 +138,7 @@ def fetch_videos_for_topic(
         stat = item.get("statistics") or {}
         stats_by_id[vid] = _parse_int(stat.get("viewCount"))
 
-    # Pick first (most recent) with >= min_views; else most recent
+    # Pick first (most recent) with >= min_views; else pick the one with highest view count
     chosen = None
     for vid_id in video_ids:
         views = stats_by_id.get(vid_id, 0)
@@ -153,7 +153,7 @@ def fetch_videos_for_topic(
             }
             break
     if chosen is None:
-        vid_id = video_ids[0]
+        vid_id = max(video_ids, key=lambda vid: stats_by_id.get(vid, 0))
         sn = id_to_snippet.get(vid_id) or {}
         chosen = {
             "url": f"https://www.youtube.com/watch?v={vid_id}",

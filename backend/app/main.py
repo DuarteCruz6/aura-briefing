@@ -1371,7 +1371,7 @@ def get_feed_by_topics(
 def get_youtube_feed_by_topics(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
-    min_views: int = 1000,
+    min_views: int = 10000,
 ):
     """
     Get one recent YouTube video per topic (user's topic preferences). Prefers videos with at least min_views.
