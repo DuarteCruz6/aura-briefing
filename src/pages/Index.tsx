@@ -56,6 +56,7 @@ const Index = () => {
   });
   const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
   const [briefingsLoading, setBriefingsLoading] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
 
   // Re-check premium + frequency when popup closes or page focuses
   useEffect(() => {
@@ -125,37 +126,43 @@ const Index = () => {
     }
     if (generatingAudio) return;
     setGenerating(id);
+    setAudioProgress(0);
 
     const briefing = briefingsRef.current.find((b) => b.id === id);
     if (!briefing) {
       setGenerating(null);
+      setAudioProgress(0);
       return;
     }
     toast.info("Generating your podcast audio…", { id: `gen-${id}` });
 
+    const progressOpt = { onProgress: setAudioProgress };
     const timeoutMs = 90_000;
     const timeoutId = setTimeout(() => {
       setGenerating(null);
+      setAudioProgress(0);
       toast.error("Generation took too long. Try again.", { id: `gen-${id}` });
     }, timeoutMs);
 
     try {
       let blob: Blob;
       if (id === "combined-briefing") {
-        blob = await api.generatePersonalBriefingAudio();
+        blob = await api.generatePersonalBriefingAudio(progressOpt);
       } else if (briefing.generateUrls?.length) {
-        blob = await api.generatePodcastFromUrls(briefing.generateUrls);
+        blob = await api.generatePodcastFromUrls(briefing.generateUrls, progressOpt);
       } else if (briefing.generateText) {
-        blob = await api.generatePodcast(briefing.generateText);
+        blob = await api.generatePodcast(briefing.generateText, progressOpt);
       } else {
         toast.error("No content available to generate audio", { id: `gen-${id}` });
-        setGenerating(null);
         clearTimeout(timeoutId);
+        setGenerating(null);
+        setAudioProgress(0);
         return;
       }
       const blobUrl = URL.createObjectURL(blob);
       setCachedUrl(id, blobUrl);
       play(id, blobUrl, title, playlist);
+      setAudioProgress(100);
       toast.success("Podcast ready!", { id: `gen-${id}` });
     } catch (err: any) {
       const fallback = "/audio/podcast.wav";
@@ -165,6 +172,7 @@ const Index = () => {
     } finally {
       clearTimeout(timeoutId);
       setGenerating(null);
+      setAudioProgress(0);
     }
   }, [filteredBriefings, generatingAudio, getCachedUrl, play, setCachedUrl, setGenerating]);
 
@@ -242,6 +250,7 @@ const Index = () => {
                         isPremium={isPremium}
                         isCurrentlyPlaying={isPlaying && currentTrack?.id === b.id}
                         isGenerating={generatingAudio === b.id}
+                        generatingProgress={generatingAudio === b.id ? audioProgress : undefined}
                         onPlay={handlePlay}
                         onPause={pause}
                         onPremiumClick={() => setPremiumOpen(true)}
