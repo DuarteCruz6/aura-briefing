@@ -1110,6 +1110,74 @@ def _get_podcast_output_dir() -> Path:
     return Path("/tmp/podcast_audio")
 
 
+def _get_briefing_urls(
+    user_id: int,
+    db: Session,
+    *,
+    max_per_topic: int = 1,
+    hl: str = "en-US",
+    gl: str = "US",
+) -> list[str]:
+    """Gather URLs for the personal briefing: latest from sources + one article per topic. Same logic as /briefing/generate."""
+    from app.services.feed_by_topics import fetch_articles_for_topic
+    from app.services.latest_from_sources import fetch_latest_for_sources
+
+    urls: list[str] = []
+    sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
+    if sources:
+        results = fetch_latest_for_sources(sources)
+        for r in results:
+            latest = r.get("latest")
+            if latest and latest.get("url"):
+                u = latest["url"].strip()
+                if u and u not in urls:
+                    urls.append(u)
+    topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
+    if topics:
+        per_topic = min(max(1, max_per_topic), 5)
+        for topic in topics:
+            topic = (topic or "").strip()
+            if not topic:
+                continue
+            articles = fetch_articles_for_topic(topic, max_articles=5, hl=hl, gl=gl)
+            for art in articles[:per_topic]:
+                u = (art.get("url") or "").strip()
+                if u and u not in urls:
+                    urls.append(u)
+                    break
+    return urls
+
+
+@app.post("/briefing/preview")
+def briefing_preview(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    max_per_topic: int = 1,
+    hl: str = "en-US",
+    gl: str = "US",
+):
+    """
+    Same URL gathering as /briefing/generate (sources + topics), but returns the JSON
+    for each URL (get_or_extract_summary) without generating the final summary or audio.
+    """
+    from app.services.url_summary import get_or_extract_summary
+
+    urls = _get_briefing_urls(user_id, db, max_per_topic=max_per_topic, hl=hl, gl=gl)
+    if not urls:
+        raise HTTPException(
+            status_code=400,
+            detail="No content. Add followed sources and/or topic preferences.",
+        )
+    items: list[dict] = []
+    for u in urls:
+        try:
+            summary = get_or_extract_summary(u, db)
+        except ValueError:
+            summary = None
+        items.append({"url": u, "summary": summary})
+    return {"urls": urls, "items": items}
+
+
 @app.post("/briefing/generate")
 async def generate_personal_briefing(
     user_id: int = Depends(get_current_user_id),
@@ -1128,8 +1196,6 @@ async def generate_personal_briefing(
         DEFAULT_MODEL_ID,
         DEFAULT_VOICE_ID,
     )
-    from app.services.feed_by_topics import fetch_articles_for_topic
-    from app.services.latest_from_sources import fetch_latest_for_sources
     from app.services.multi_url_summary import get_multi_url_summary
 
     cache_key = "personal"
@@ -1152,36 +1218,8 @@ async def generate_personal_briefing(
             },
         )
 
-    urls: list[str] = []
-
-    # 1) Latest from followed accounts
-    logger.info("Briefing: phase 1 - fetching latest from sources")
-    sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
-    if sources:
-        results = fetch_latest_for_sources(sources)
-        for r in results:
-            latest = r.get("latest")
-            if latest and latest.get("url"):
-                u = latest["url"].strip()
-                if u and u not in urls:
-                    urls.append(u)
-
-    # 2) One article per topic interest
-    logger.info("Briefing: phase 2 - fetching articles by topics")
-    topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
-    if topics:
-        per_topic = min(max(1, max_per_topic), 5)
-        for topic in topics:
-            topic = (topic or "").strip()
-            if not topic:
-                continue
-            articles = fetch_articles_for_topic(topic, max_articles=5, hl=hl, gl=gl)
-            for art in articles[:per_topic]:
-                u = (art.get("url") or "").strip()
-                if u and u not in urls:
-                    urls.append(u)
-                    break  # one per topic
-
+    logger.info("Briefing: gathering URLs from sources and topics")
+    urls = _get_briefing_urls(user_id, db, max_per_topic=max_per_topic, hl=hl, gl=gl)
     if not urls:
         raise HTTPException(
             status_code=400,
