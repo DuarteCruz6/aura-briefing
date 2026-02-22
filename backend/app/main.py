@@ -1464,6 +1464,23 @@ def get_personal_briefing_transcript(
     return {"transcript": cached.transcript}
 
 
+@app.post("/briefing/invalidate")
+def invalidate_personal_briefing(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Invalidate the cached personal briefing (audio + transcript) for the current user.
+    Next play or generate will create a fresh briefing.
+    """
+    db.query(CachedBriefingAudio).filter(
+        CachedBriefingAudio.user_id == user_id,
+        CachedBriefingAudio.cache_key == "personal",
+    ).delete()
+    db.commit()
+    return {"invalidated": True}
+
+
 @app.get("/progress")
 async def progress_sse(token: str):
     """

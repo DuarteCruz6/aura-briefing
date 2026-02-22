@@ -1,5 +1,7 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { useAudio } from "../contexts/AudioContext";
+import { api } from "../lib/api";
 import { AudioPlayer } from "./AudioPlayer";
 
 /**
@@ -15,7 +17,22 @@ export function GlobalAudioPlayer() {
     skipPrevious,
     hasNext,
     hasPrevious,
+    refreshCurrentTrackUrl,
   } = useAudio();
+
+  const onRegenerateTranscript = useCallback(async () => {
+    if (currentTrack?.id !== "combined-briefing") return;
+    try {
+      await api.invalidatePersonalBriefing();
+      const blob = await api.generatePersonalBriefingAudio();
+      const blobUrl = URL.createObjectURL(blob);
+      refreshCurrentTrackUrl("combined-briefing", blobUrl);
+      toast.success("Transcript regenerated");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to regenerate transcript";
+      toast.error(message);
+    }
+  }, [currentTrack?.id, refreshCurrentTrackUrl]);
 
   // Spacebar toggles play/pause when audio is active (video popup handles its own space with capture)
   useEffect(() => {
@@ -45,6 +62,7 @@ export function GlobalAudioPlayer() {
         onSkipPrevious={skipPrevious}
         hasNext={hasNext}
         hasPrevious={hasPrevious}
+        onRegenerateTranscript={currentTrack.id === "combined-briefing" ? onRegenerateTranscript : undefined}
       />
     </div>
   );

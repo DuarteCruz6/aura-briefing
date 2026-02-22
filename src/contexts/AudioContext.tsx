@@ -23,6 +23,7 @@ interface AudioContextValue {
   setGenerating: (id: string | null) => void;
   getCachedUrl: (id: string) => string | undefined;
   setCachedUrl: (id: string, url: string) => void;
+  refreshCurrentTrackUrl: (id: string, url: string) => void;
   skipNext: () => void;
   skipPrevious: () => void;
   hasNext: boolean;
@@ -54,6 +55,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const setCachedUrl = useCallback((id: string, url: string) => {
     audioCacheRef.current[id] = url;
   }, []);
+
+  const refreshCurrentTrackUrl = useCallback((id: string, url: string) => {
+    setCachedUrl(id, url);
+    setCurrentTrack((prev) => (prev?.id === id ? { ...prev, src: url } : prev));
+  }, [setCachedUrl]);
 
   const play = useCallback((id: string, audioUrl: string, title: string, nextPlaylist?: PlaylistItem[]) => {
     if (nextPlaylist?.length) setPlaylistState(nextPlaylist);
@@ -113,6 +119,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setGenerating,
         getCachedUrl,
         setCachedUrl,
+        refreshCurrentTrackUrl,
         skipNext,
         skipPrevious,
         hasNext,

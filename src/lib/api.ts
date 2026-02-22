@@ -396,6 +396,15 @@ export const api = {
     }
     return res.json();
   },
+
+  /** Invalidate cached personal briefing so next generate returns fresh audio + transcript. */
+  async invalidatePersonalBriefing(): Promise<void> {
+    const res = await fetch(url("/briefing/invalidate"), {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to invalidate briefing: ${res.status}`);
+  },
 };
 
 export interface SourceEntry {
