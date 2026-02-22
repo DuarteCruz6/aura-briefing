@@ -33,7 +33,7 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
   const [lyricsOpen, setLyricsOpen] = useState(false);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const transcript = trackTitle ? getTranscriptForTrack(trackTitle) : null;
+  const transcript = src ? getTranscriptForTrack(trackTitle) : null;
 
   useEffect(() => {
     const audio = audioRef.current;
