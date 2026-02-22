@@ -189,6 +189,17 @@ export const api = {
     if (!res.ok) throw new Error(`Failed to remove topic: ${res.status}`);
   },
 
+  /**
+   * Get suggested articles from Google News RSS based on the user's topic preferences.
+   * Used for the Explore page "Suggestions" section. Returns empty topics when user has no topics.
+   */
+  async getFeedByTopics(params?: { max_per_topic?: number }): Promise<FeedByTopicsResponse> {
+    const qs = params?.max_per_topic != null ? `?max_per_topic=${params.max_per_topic}` : "";
+    const res = await fetch(url(`/feed/by-topics${qs}`), { headers: authHeaders() });
+    if (!res.ok) throw new Error(`Failed to fetch feed: ${res.status}`);
+    return res.json();
+  },
+
   /** List bookmarks (saved briefings). */
   async getBookmarks(): Promise<BookmarkEntry[]> {
     const res = await fetch(url("/bookmarks"), { headers: authHeaders() });
@@ -434,6 +445,24 @@ export interface TopicPreference {
   id: number;
   topic: string;
   created_at: string | null;
+}
+
+/** Article from GET /feed/by-topics (Google News RSS). */
+export interface FeedByTopicsArticle {
+  url: string;
+  title: string;
+  published_at: string | null;
+  source: string | null;
+}
+
+export interface FeedByTopicsTopic {
+  topic: string;
+  articles: FeedByTopicsArticle[];
+}
+
+export interface FeedByTopicsResponse {
+  topics: FeedByTopicsTopic[];
+  message?: string;
 }
 
 export interface BookmarkEntry {

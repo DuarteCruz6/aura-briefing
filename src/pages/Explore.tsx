@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { SourcesSection } from "../components/SourcesSection";
-import { ArrowLeft, Search, Sparkles, TrendingUp, Heart } from "lucide-react";
+import { ArrowLeft, Search, Sparkles, TrendingUp, Heart, Newspaper, ExternalLink, Loader2 } from "lucide-react";
 import { useFavourites } from "../hooks/useFavourites";
 import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { toast } from "sonner";
+import { api, type FeedByTopicsResponse } from "../lib/api";
 
 const topics = [
   { id: "ai", label: "AI & Technology", emoji: "🤖", desc: "Artificial intelligence, gadgets & innovation" },
@@ -44,8 +45,33 @@ const Explore = () => {
   const navigate = useNavigate();
   const [topicSearch, setTopicSearch] = useState("");
   const [regionSearch, setRegionSearch] = useState("");
+  const [suggestions, setSuggestions] = useState<FeedByTopicsResponse | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const { addFavourite, removeFavourite, isFavourite } = useFavourites();
   const { topics: apiTopics, addTopic, removeTopic, isTopicSelected } = usePreferencesTopics();
+
+  useEffect(() => {
+    if (apiTopics.length === 0) {
+      setSuggestions({ topics: [], message: "Add topic preferences first" });
+      return;
+    }
+    let cancelled = false;
+    setSuggestionsLoading(true);
+    api
+      .getFeedByTopics({ max_per_topic: 5 })
+      .then((data) => {
+        if (!cancelled) setSuggestions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions({ topics: [] });
+      })
+      .finally(() => {
+        if (!cancelled) setSuggestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiTopics.length]);
 
   const toggleTopic = async (label: string) => {
     if (isTopicSelected(label)) {
@@ -140,7 +166,55 @@ const Explore = () => {
             </div>
           </motion.section>
 
-
+          {/* Suggestions (feed by topics) */}
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Newspaper className="w-4 h-4 text-primary" />
+              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Suggestions for you</h2>
+            </div>
+            {suggestionsLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Loading suggestions…</span>
+              </div>
+            ) : apiTopics.length === 0 ? (
+              <div className="rounded-xl glass-panel border border-border/50 p-6 text-center">
+                <p className="text-sm text-muted-foreground mb-1">Add topics above to get personalized article suggestions.</p>
+                <p className="text-xs text-muted-foreground">Suggestions are based on your saved topics.</p>
+              </div>
+            ) : suggestions && suggestions.topics.length > 0 ? (
+              <div className="space-y-4">
+                {suggestions.topics.map(({ topic, articles }) =>
+                  articles.length > 0 ? (
+                    <div key={topic}>
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">{topic}</p>
+                      <div className="space-y-2">
+                        {articles.map((art, i) => (
+                          <a
+                            key={art.url || i}
+                            href={art.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-start gap-2 rounded-lg glass-panel border border-border/30 p-3 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left"
+                          >
+                            <span className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary">{art.title}</span>
+                              {art.source && <span className="text-xs text-muted-foreground block mt-0.5">{art.source}</span>}
+                            </span>
+                            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            ) : (
+              <div className="rounded-xl glass-panel border border-border/50 p-6 text-center">
+                <p className="text-sm text-muted-foreground">No suggestions right now. Try adding more topics.</p>
+              </div>
+            )}
+          </motion.section>
 
           {/* Follow Sources */}
           <SourcesSection />
