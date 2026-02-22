@@ -138,13 +138,19 @@ export const SourcesSection = () => {
       ) : sources.length > 0 ? (
         <div className="mt-4 space-y-2">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Following ({sources.length})</p>
-          {sources.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-secondary/30 border border-border/30"
-            >
-              <span className="text-sm text-foreground truncate">{s.name || getSourceDisplayName(s.url ?? "", s.type)}</span>
-              <button
+          {sources.map((s) => {
+            const platform = platforms.find((p) => p.id === s.type);
+            const SourceIcon = platform?.icon;
+            return (
+              <div
+                key={s.id}
+                className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-secondary/30 border border-border/30"
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {SourceIcon && <SourceIcon className={`w-4 h-4 shrink-0 ${platform?.color ?? "text-muted-foreground"}`} />}
+                  <span className="text-sm text-foreground truncate">{s.name || getSourceDisplayName(s.url ?? "", s.type)}</span>
+                </div>
+                <button
                 onClick={() => deleteSource(s.id)}
                 className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                 title="Unfollow"
@@ -152,7 +158,8 @@ export const SourcesSection = () => {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
     </motion.section>

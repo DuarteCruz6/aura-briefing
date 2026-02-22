@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
-import { ArrowLeft, Heart, X, ExternalLink, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Heart, X, ExternalLink, Sparkles, Loader2, Youtube, Linkedin, Twitter } from "lucide-react";
 import { useFavourites, type FavouriteItem } from "../hooks/useFavourites";
 import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { useSources } from "../hooks/useSources";
@@ -13,6 +13,12 @@ const typeLabels: Record<string, { label: string; color: string }> = {
   region: { label: "Region", color: "bg-accent/10 text-accent" },
   interest: { label: "Interest", color: "bg-[hsl(var(--neon-green))]/10 text-[hsl(var(--neon-green))]" },
   source: { label: "Source", color: "bg-[hsl(var(--neon-purple))]/10 text-[hsl(var(--neon-purple))]" },
+};
+
+const sourcePlatformIcons: Record<string, { icon: typeof Youtube; color: string }> = {
+  youtube: { icon: Youtube, color: "text-red-500" },
+  x: { icon: Twitter, color: "text-foreground" },
+  linkedin: { icon: Linkedin, color: "text-blue-500" },
 };
 
 const Favourites = () => {
@@ -160,7 +166,10 @@ const Favourites = () => {
               <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Followed Sources</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <AnimatePresence>
-                  {sources.map((s) => (
+                  {sources.map((s) => {
+                    const platform = sourcePlatformIcons[s.type];
+                    const PlatformIcon = platform?.icon;
+                    return (
                     <motion.div
                       key={s.id}
                       initial={{ opacity: 0, scale: 0.95 }}
@@ -169,7 +178,10 @@ const Favourites = () => {
                       className="glass-panel rounded-xl border border-border/30 p-4 flex items-start gap-3 group hover:border-border/60 transition-all"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground truncate">{s.name || getSourceDisplayName(s.url ?? "", s.type)}</p>
+                        <p className="font-medium text-sm text-foreground truncate flex items-center gap-2">
+                          {PlatformIcon && <PlatformIcon className={`w-4 h-4 shrink-0 ${platform?.color ?? "text-muted-foreground"}`} />}
+                          {s.name || getSourceDisplayName(s.url ?? "", s.type)}
+                        </p>
                         <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline mt-1 truncate">
                           <ExternalLink className="w-3 h-3 shrink-0" />
                           <span className="truncate">{s.url}</span>
@@ -188,7 +200,8 @@ const Favourites = () => {
                         <X className="w-4 h-4" />
                       </button>
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             </motion.section>
