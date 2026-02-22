@@ -39,7 +39,13 @@ export const transcripts: TrackTranscript[] = [
   { trackTitle: "This Month's Briefing", segments: podcastLines },
 ];
 
+/** Default segments used when no transcript exists for a briefing (e.g. user-generated briefings with dynamic titles). */
+const defaultSegments: TranscriptSegment[] = [{ id: 0, start: 0, end: 600, text: "Transcript not available for this briefing. Play the audio to listen." }];
+
 export function getTranscriptForTrack(title: string): TranscriptSegment[] | null {
+  if (!title?.trim()) return null;
   const t = transcripts.find((tr) => tr.trackTitle === title);
-  return t ? t.segments : null;
+  if (t) return t.segments;
+  // Show a fallback so the captions/lyrics panel appears on every briefing
+  return defaultSegments;
 }
