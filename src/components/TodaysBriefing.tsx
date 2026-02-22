@@ -5,15 +5,15 @@ import { useState } from "react";
 
 interface TodaysBriefingProps {
   frequency?: string;
-  onPlay?: (audioUrl: string, title: string) => void;
+  onPlay?: (id: string, audioUrl: string, title: string) => void;
   isPlaying?: boolean;
-  currentTrackTitle?: string;
+  currentTrackId?: string;
   onPause?: () => void;
 }
 
 const BRIEFING_AUDIO = "/audio/podcast.wav";
 
-export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, currentTrackTitle, onPause }: TodaysBriefingProps) {
+export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, currentTrackId, onPause }: TodaysBriefingProps) {
   const freqLabel = frequency === "weekly" ? "This Week's" : frequency === "monthly" ? "This Month's" : "Today's";
   const freqDesc = frequency === "weekly"
     ? "Your weekly intelligence digest — top stories from the past 7 days."
@@ -72,14 +72,15 @@ export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, current
 
           <div className="flex items-center gap-4">
             {(() => {
+              const briefingId = "todays-briefing";
               const briefingTitle = `${freqLabel} Briefing`;
-              const isCurrent = isPlaying && currentTrackTitle === briefingTitle;
+              const isCurrent = isPlaying && currentTrackId === briefingId;
               return (
                 <>
                   <motion.button
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => isCurrent ? onPause?.() : onPlay?.(BRIEFING_AUDIO, briefingTitle)}
+                    onClick={() => isCurrent ? onPause?.() : onPlay?.(briefingId, BRIEFING_AUDIO, briefingTitle)}
                     className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center play-button-glow flex-shrink-0"
                   >
                     {!isCurrent && (

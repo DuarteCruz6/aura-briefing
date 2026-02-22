@@ -30,7 +30,7 @@ const Index = () => {
   const hasFavourites = favouriteLabels.length > 0;
   const { setChatOpen } = useChat();
   const [premiumOpen, setPremiumOpen] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState<{ src: string; title: string } | null>(null);
+  const [currentTrack, setCurrentTrack] = useState<{ id: string; src: string; title: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoBriefing, setVideoBriefing] = useState<{ title: string; summary: string } | null>(null);
   const [isPremium, setIsPremium] = useState(() => {
@@ -108,7 +108,7 @@ const Index = () => {
     podcast: <Cpu className="w-5 h-5" />,
   };
   const apiBriefingCards = apiBriefings.map((b) => ({
-    id: b.id,
+    id: String(b.id),
     title: b.title,
     description: b.error ? "Could not fetch latest." : "Latest from your source",
     duration: "—",
@@ -127,28 +127,28 @@ const Index = () => {
   const audioCache = useRef<Record<string, string>>({});
   const [generatingAudio, setGeneratingAudio] = useState<string | null>(null);
 
-  const handlePlay = useCallback(async (audioUrl: string, title: string) => {
+  const handlePlay = useCallback(async (id: string, audioUrl: string, title: string) => {
     // If there's already a cached or provided audio URL, play it directly
     if (audioUrl) {
-      setCurrentTrack({ src: audioUrl, title });
+      setCurrentTrack({ id, src: audioUrl, title });
       setIsPlaying(true);
       return;
     }
 
     // Find the briefing to generate audio for
-    const briefing = filteredBriefings.find(b => b.title === title);
+    const briefing = filteredBriefings.find(b => b.id === id);
     if (!briefing) return;
 
     // Check cache first
-    if (audioCache.current[title]) {
-      setCurrentTrack({ src: audioCache.current[title], title });
+    if (audioCache.current[id]) {
+      setCurrentTrack({ id, src: audioCache.current[id], title });
       setIsPlaying(true);
       return;
     }
 
     // Generate audio from backend
-    setGeneratingAudio(title);
-    toast.info("Generating your podcast audio…", { id: `gen-${title}` });
+    setGeneratingAudio(id);
+    toast.info("Generating your podcast audio…", { id: `gen-${id}` });
 
     try {
       let blob: Blob;
@@ -157,22 +157,22 @@ const Index = () => {
       } else if (briefing.generateText) {
         blob = await api.generatePodcast(briefing.generateText);
       } else {
-        toast.error("No content available to generate audio", { id: `gen-${title}` });
+        toast.error("No content available to generate audio", { id: `gen-${id}` });
         setGeneratingAudio(null);
         return;
       }
       const blobUrl = URL.createObjectURL(blob);
-      audioCache.current[title] = blobUrl;
-      setCurrentTrack({ src: blobUrl, title });
+      audioCache.current[id] = blobUrl;
+      setCurrentTrack({ id, src: blobUrl, title });
       setIsPlaying(true);
-      toast.success("Podcast ready!", { id: `gen-${title}` });
+      toast.success("Podcast ready!", { id: `gen-${id}` });
     } catch (err: any) {
       // Fallback to static sample audio when backend is unreachable
       const fallback = "/audio/podcast.wav";
-      audioCache.current[title] = fallback;
-      setCurrentTrack({ src: fallback, title });
+      audioCache.current[id] = fallback;
+      setCurrentTrack({ id, src: fallback, title });
       setIsPlaying(true);
-      toast.info("Using sample audio (backend unavailable)", { id: `gen-${title}` });
+      toast.info("Using sample audio (backend unavailable)", { id: `gen-${id}` });
     } finally {
       setGeneratingAudio(null);
     }
@@ -182,22 +182,22 @@ const Index = () => {
     setIsPlaying(false);
   }, []);
 
-  const currentIndex = currentTrack ? filteredBriefings.findIndex(b => b.title === currentTrack.title) : -1;
+  const currentIndex = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
 
   const handleSkipNext = useCallback(() => {
-    const idx = currentTrack ? filteredBriefings.findIndex(b => b.title === currentTrack.title) : -1;
+    const idx = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
     if (idx >= 0 && idx < filteredBriefings.length - 1) {
       const next = filteredBriefings[idx + 1];
-      setCurrentTrack({ src: next.audioUrl, title: next.title });
+      setCurrentTrack({ id: next.id, src: audioCache.current[next.id] || next.audioUrl, title: next.title });
       setIsPlaying(true);
     }
   }, [currentTrack, filteredBriefings]);
 
   const handleSkipPrevious = useCallback(() => {
-    const idx = currentTrack ? filteredBriefings.findIndex(b => b.title === currentTrack.title) : -1;
+    const idx = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
     if (idx > 0) {
       const prev = filteredBriefings[idx - 1];
-      setCurrentTrack({ src: prev.audioUrl, title: prev.title });
+      setCurrentTrack({ id: prev.id, src: audioCache.current[prev.id] || prev.audioUrl, title: prev.title });
       setIsPlaying(true);
     }
   }, [currentTrack, filteredBriefings]);
@@ -243,7 +243,7 @@ const Index = () => {
 
             {hasFavourites ? (
               <>
-                <TodaysBriefing frequency={frequency} onPlay={handlePlay} isPlaying={isPlaying} currentTrackTitle={currentTrack?.title} onPause={handlePause} />
+                <TodaysBriefing frequency={frequency} onPlay={handlePlay} isPlaying={isPlaying} currentTrackId={currentTrack?.id} onPause={handlePause} />
 
                 <div className="space-y-3">
                   <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
@@ -259,6 +259,7 @@ const Index = () => {
                     filteredBriefings.map((b, i) => (
                       <BriefingCard
                         key={b.id}
+                        id={b.id}
                         title={b.title}
                         description={b.description}
                         duration={b.duration}
@@ -266,11 +267,11 @@ const Index = () => {
                         confidence={b.confidence}
                         summary={b.summary}
                         icon={b.icon}
-                        audioUrl={audioCache.current[b.title] || b.audioUrl}
+                        audioUrl={audioCache.current[b.id] || b.audioUrl}
                         index={i}
                         isPremium={isPremium}
-                        isCurrentlyPlaying={isPlaying && currentTrack?.title === b.title}
-                        isGenerating={generatingAudio === b.title}
+                        isCurrentlyPlaying={isPlaying && currentTrack?.id === b.id}
+                        isGenerating={generatingAudio === b.id}
                         onPlay={handlePlay}
                         onPause={handlePause}
                         onPremiumClick={() => setPremiumOpen(true)}
