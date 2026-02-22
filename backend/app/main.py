@@ -1401,6 +1401,33 @@ def get_youtube_feed_by_topics(
     return out
 
 
+@app.get("/feed/x-by-topics")
+def get_x_feed_by_topics(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Get one recent X (Twitter) post per topic from the user's topic preferences.
+    Uses Nitter search RSS (no API key). Set NITTER_BASE_URL if the default instance is down.
+    """
+    from app.services.x_by_topics import fetch_posts_by_topics
+
+    topics = [
+        p.topic
+        for p in db.query(UserTopicPreference)
+        .filter(UserTopicPreference.user_id == user_id)
+        .order_by(UserTopicPreference.created_at.desc())
+        .all()
+    ]
+    if not topics:
+        return {
+            "topics": [],
+            "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
+        }
+    results = fetch_posts_by_topics(topics)
+    return {"topics": results}
+
+
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
 
 
