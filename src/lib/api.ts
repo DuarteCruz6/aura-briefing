@@ -412,6 +412,17 @@ export const api = {
     }
     return res.json();
   },
+
+  /** Get an image URL for slideshow by keyword(s). Uses Unsplash when backend is configured. */
+  async getSlideshowImage(query: string): Promise<{ url: string }> {
+    const q = (query || "news").trim() || "news";
+    const res = await fetch(url(`/slideshow/image?${new URLSearchParams({ q })}`));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err.detail as string) || `Slideshow image failed: ${res.status}`);
+    }
+    return res.json();
+  },
 };
 
 export interface SourceEntry {

@@ -11,11 +11,16 @@ export function GlobalAudioPlayer() {
     currentTrack,
     isPlaying,
     setPlaying,
+    setPlaybackState,
     skipNext,
     skipPrevious,
     hasNext,
     hasPrevious,
   } = useAudio();
+
+  useEffect(() => {
+    if (!currentTrack) setPlaybackState(null);
+  }, [currentTrack, setPlaybackState]);
 
   // Spacebar toggles play/pause when audio is active (video popup handles its own space with capture)
   useEffect(() => {
@@ -41,6 +46,7 @@ export function GlobalAudioPlayer() {
         briefingId={currentTrack.id}
         externalPlaying={isPlaying}
         onPlayingChange={setPlaying}
+        onPlaybackState={setPlaybackState}
         onSkipNext={skipNext}
         onSkipPrevious={skipPrevious}
         hasNext={hasNext}

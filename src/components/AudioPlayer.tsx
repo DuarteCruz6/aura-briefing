@@ -21,13 +21,15 @@ interface AudioPlayerProps {
   briefingId?: string;
   externalPlaying?: boolean;
   onPlayingChange?: (playing: boolean) => void;
+  /** Report current time, duration, and transcript for slideshow sync. */
+  onPlaybackState?: (state: { currentTime: number; duration: number; segments: { start: number; end: number; text: string }[] } | null) => void;
   onSkipNext?: () => void;
   onSkipPrevious?: () => void;
   hasNext?: boolean;
   hasPrevious?: boolean;
 }
 
-export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPlayingChange, onSkipNext, onSkipPrevious, hasNext, hasPrevious }: AudioPlayerProps) {
+export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPlayingChange, onPlaybackState, onSkipNext, onSkipPrevious, hasNext, hasPrevious }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -70,8 +72,26 @@ export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPl
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onTime = () => setCurrentTime(audio.currentTime);
-    const onMeta = () => setDuration(audio.duration);
+    const onTime = () => {
+      setCurrentTime(audio.currentTime);
+      if (transcript?.length && onPlaybackState) {
+        onPlaybackState({
+          currentTime: audio.currentTime,
+          duration: audio.duration || 0,
+          segments: transcript.map((s) => ({ start: s.start, end: s.end, text: s.text })),
+        });
+      }
+    };
+    const onMeta = () => {
+      setDuration(audio.duration);
+      if (transcript?.length && onPlaybackState) {
+        onPlaybackState({
+          currentTime: audio.currentTime,
+          duration: audio.duration || 0,
+          segments: transcript.map((s) => ({ start: s.start, end: s.end, text: s.text })),
+        });
+      }
+    };
     const onEnd = () => { setPlaying(false); onPlayingChange?.(false); };
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onMeta);
@@ -81,17 +101,33 @@ export function AudioPlayer({ src, trackTitle, briefingId, externalPlaying, onPl
       audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("ended", onEnd);
     };
-  }, []);
+  }, [transcript, onPlaybackState]);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !src) return;
+    if (!audio || !src) {
+      if (!src) onPlaybackState?.(null);
+      return;
+    }
     audio.src = src;
     audio.load();
     audio.currentTime = 0;
     setCurrentTime(0);
+    if (!transcript?.length) onPlaybackState?.(null);
     audio.play().then(() => { setPlaying(true); onPlayingChange?.(true); }).catch(() => {});
   }, [src]);
+
+  // Sync playback state when transcript loads (e.g. personal briefing) or duration becomes available
+  useEffect(() => {
+    if (!transcript?.length || !onPlaybackState) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    onPlaybackState({
+      currentTime: audio.currentTime,
+      duration: audio.duration || 0,
+      segments: transcript.map((s) => ({ start: s.start, end: s.end, text: s.text })),
+    });
+  }, [transcript, onPlaybackState]);
 
   useEffect(() => {
     const audio = audioRef.current;

@@ -178,6 +178,54 @@ def root():
 def health():
     return {"status": "ok"}
 
+
+@app.get("/slideshow/image")
+async def slideshow_image(q: str = ""):
+    """
+    Return a single image URL for slideshow search. Uses Unsplash API when UNSPLASH_ACCESS_KEY is set.
+    Query should be 1–3 keywords (e.g. "arctic russia" or "coffee"). Returns 503 if no API key.
+    """
+    import httpx
+    query = (q or "").strip() or "news"
+    key = (settings.unsplash_access_key or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="Slideshow image search unavailable (UNSPLASH_ACCESS_KEY not set)",
+        )
+    url_api = "https://api.unsplash.com/search/photos"
+    params = {"query": query, "per_page": "1", "orientation": "landscape"}
+    headers = {"Authorization": f"Client-ID {key}", "Accept-Version": "v1"}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url_api, params=params, headers=headers)
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Image search failed: {resp.status_code}",
+        )
+    data = resp.json()
+    results = data.get("results") or []
+    if not results:
+        # Fallback: random photo by query
+        random_url = "https://api.unsplash.com/photos/random"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r2 = await client.get(random_url, params={"query": query, "orientation": "landscape"}, headers=headers)
+        if r2.status_code != 200:
+            raise HTTPException(status_code=502, detail="No image found for query")
+        single = r2.json()
+        urls = single.get("urls") or {}
+        image_url = urls.get("regular") or urls.get("full") or urls.get("small")
+        if not image_url:
+            raise HTTPException(status_code=502, detail="Invalid image response")
+        return {"url": image_url}
+    first = results[0]
+    urls = first.get("urls") or {}
+    image_url = urls.get("regular") or urls.get("full") or urls.get("small")
+    if not image_url:
+        raise HTTPException(status_code=502, detail="Invalid image response")
+    return {"url": image_url}
+
+
 # CORS: set CORS_ORIGINS to your frontend URL(s), or "*" to allow any origin (e.g. for demos).
 _origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 _allow_any_origin = _origins == ["*"]

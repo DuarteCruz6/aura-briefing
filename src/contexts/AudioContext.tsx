@@ -12,11 +12,21 @@ export interface CurrentTrack {
   title: string;
 }
 
+/** Playback state for slideshow: current time, duration, and transcript segments. */
+export interface PlaybackState {
+  currentTime: number;
+  duration: number;
+  segments: { start: number; end: number; text: string }[];
+}
+
 interface AudioContextValue {
   currentTrack: CurrentTrack | null;
   isPlaying: boolean;
   generatingAudio: string | null;
   playlist: PlaylistItem[];
+  /** When a track with transcript is playing, updated on timeupdate for slideshow sync. */
+  playbackState: PlaybackState | null;
+  setPlaybackState: (state: PlaybackState | null) => void;
   play: (id: string, audioUrl: string, title: string, nextPlaylist?: PlaylistItem[]) => void;
   pause: () => void;
   setGenerating: (id: string | null) => void;
@@ -37,6 +47,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [generatingAudio, setGenerating] = useState<string | null>(null);
   const [playlist, setPlaylistState] = useState<PlaylistItem[]>([]);
+  const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const audioCacheRef = useRef<Record<string, string>>({});
 
   const getCachedUrl = useCallback((id: string) => audioCacheRef.current[id], []);
@@ -97,6 +108,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         isPlaying,
         generatingAudio,
         playlist,
+        playbackState,
+        setPlaybackState,
         play,
         pause,
         setGenerating,

@@ -14,6 +14,7 @@ import { useAudio } from "../contexts/AudioContext";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
 import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
+import { PodcastSlideshow } from "../components/PodcastSlideshow";
 import { api } from "../lib/api";
 
 const Index = () => {
@@ -248,6 +249,11 @@ const Index = () => {
               </div>
             ) : hasFavourites ? (
               <>
+                {currentTrack && (
+                  <div className="mb-6">
+                    <PodcastSlideshow />
+                  </div>
+                )}
                 <div className="space-y-3">
                   <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                     Your {freqLabel} Briefings

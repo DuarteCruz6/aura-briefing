@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # Apify (e.g. for LinkedIn profile posts). Get token at https://console.apify.com/account/integrations
     apify_api_token: str = ""
 
+    # Unsplash (for podcast slideshow image search). Get key at https://unsplash.com/oauth/applications
+    unsplash_access_key: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
