@@ -41,9 +41,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [playlist, setPlaylistState] = useState<PlaylistItem[]>([]);
   const audioCacheRef = useRef<Record<string, string>>({});
 
-  // Clear cached briefing audio when user changes (logout or switch account) so the new user doesn't hear the previous user's briefing
+  // Clear all audio state when user changes (logout or switch account) so the new user doesn't see or hear the previous user's briefing
   useEffect(() => {
     audioCacheRef.current = {};
+    setCurrentTrack(null);
+    setIsPlaying(false);
+    setPlaylistState([]);
+    setGenerating(null);
   }, [user?.email ?? null]);
 
   const getCachedUrl = useCallback((id: string) => audioCacheRef.current[id], []);
