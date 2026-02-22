@@ -50,7 +50,7 @@ def _fetch_post_for_topic_apify(topic: str, api_token: str) -> tuple[dict | None
         f"?token={api_token}&timeout=60&limit=1"
     )
     # "top" = sort by engagement (likes, retweets); "latest" = most recent
-    payload = {"query": topic, "resultsCount": 1, "searchType": "top"}
+    payload = {"query": topic, "resultsCount": 1, "searchType": "latest"}
     try:
         with httpx.Client(timeout=75.0) as client:
             r = client.post(api_url, json=payload)
@@ -68,8 +68,21 @@ def _fetch_post_for_topic_apify(topic: str, api_token: str) -> tuple[dict | None
 
     if not isinstance(data, list) or len(data) == 0:
         return (None, None)
-    post = _post_from_search_item(data[0])
-    return (post, None) if post else (None, None)
+    item = data[0]
+    url = item.get("postUrl") or item.get("url")
+    if not url:
+        return (None, None)
+    title = (item.get("postText") or item.get("text") or "")[:500].strip() or None
+    published = None
+    ts = item.get("timestamp")
+    if isinstance(ts, (int, float)):
+        try:
+            published = datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc).isoformat()
+        except Exception:
+            published = str(ts)
+    elif item.get("created_at"):
+        published = item.get("created_at")
+    return ({"url": url, "title": title or "", "published_at": published}, None)
 
 
 def _fetch_post_for_topic_nitter(topic: str) -> tuple[dict | None, str | None]:
@@ -133,37 +146,10 @@ def fetch_post_for_topic(topic: str) -> tuple[dict | None, str | None]:
     return _fetch_post_for_topic_nitter(topic)
 
 
-def _post_from_search_item(item: dict) -> dict | None:
-    """Build {url, title, published_at, likes?, ...} from Apify search result."""
-    url = item.get("postUrl") or item.get("url")
-    if not url:
-        return None
-    title = (item.get("postText") or item.get("text") or "")[:500].strip() or ""
-    published = None
-    ts = item.get("timestamp")
-    if isinstance(ts, (int, float)):
-        try:
-            published = datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc).isoformat()
-        except Exception:
-            published = str(ts)
-    elif item.get("created_at"):
-        published = item.get("created_at")
-    out = {"url": url, "title": title, "published_at": published}
-    # Keep engagement for sorting/display
-    for key in ("favouriteCount", "repostCount", "replyCount", "quoteCount"):
-        if key in item and item[key] is not None:
-            out[key] = item[key]
-    author = item.get("author") or {}
-    if author:
-        out["author_handle"] = author.get("screenName") or ""
-        out["author_name"] = author.get("name") or ""
-    return out
-
-
 def fetch_posts_by_topics(topics: list[str]) -> list[dict]:
     """
-    Fetch one X post per topic (high-engagement "top" when using Apify).
-    Returns list of {topic, post: {url, title, published_at}}.
+    Fetch one recent X post per topic. Returns list of {topic, post: {url, title, published_at}}.
+    Skips topics that return no post; no error surface (Nitter may be down or search RSS disabled).
     """
     if not topics:
         return []
@@ -174,46 +160,4 @@ def fetch_posts_by_topics(topics: list[str]) -> list[dict]:
             continue
         post, _ = fetch_post_for_topic(topic)
         result.append({"topic": topic, "post": post})
-    return result
-
-
-def fetch_popular_posts(api_token: str, max_posts: int = 12) -> list[dict]:
-    """
-    Fetch X posts with lots of reactions/likes via broad "top" searches (not tied to specific people).
-    Returns list of {post: {url, title, published_at, favouriteCount?, ...}, author_handle?, author_name?}.
-    """
-    if not api_token or httpx is None:
-        return []
-    # Broad queries that tend to surface high-engagement posts
-    queries = ["news", "tech", "today", "world"]
-    api_url = (
-        f"https://api.apify.com/v2/acts/{APIFY_X_POSTS_SEARCH_ACTOR_ID}/run-sync-get-dataset-items"
-        f"?token={api_token}&timeout=90&limit={max_posts * 2}"
-    )
-    seen_urls: set[str] = set()
-    result: list[dict] = []
-    per_query = max(3, (max_posts + len(queries) - 1) // len(queries))
-    for q in queries:
-        if len(result) >= max_posts:
-            break
-        payload = {"query": q, "resultsCount": per_query, "searchType": "top"}
-        try:
-            with httpx.Client(timeout=100.0) as client:
-                r = client.post(api_url, json=payload)
-                r.raise_for_status()
-                data = r.json()
-        except Exception:
-            continue
-        if not isinstance(data, list):
-            continue
-        for item in data:
-            if len(result) >= max_posts:
-                break
-            post_url = item.get("postUrl") or item.get("url")
-            if not post_url or post_url in seen_urls:
-                continue
-            seen_urls.add(post_url)
-            post = _post_from_search_item(item)
-            if post:
-                result.append({"post": post})
     return result

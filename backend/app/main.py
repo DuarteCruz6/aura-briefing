@@ -1526,11 +1526,10 @@ def get_x_feed_by_topics(
     db: Session = Depends(get_db),
 ):
     """
-    Get X (Twitter) posts: by topic (high-engagement "top" when Apify) and popular posts (lots of likes/reactions).
-    Topic search uses "top" sort for engagement; popular section is from broad "top" searches (no fixed accounts).
+    Get one recent X (Twitter) post per topic from the user's topic preferences.
+    Uses Apify (scraper_one/x-posts-search) when APIFY_API_TOKEN is set; otherwise falls back to Nitter search RSS.
     """
-    from app.config import settings
-    from app.services.x_by_topics import fetch_posts_by_topics, fetch_popular_posts
+    from app.services.x_by_topics import fetch_posts_by_topics
 
     topics = [
         p.topic
@@ -1539,18 +1538,13 @@ def get_x_feed_by_topics(
         .order_by(UserTopicPreference.created_at.desc())
         .all()
     ]
-    topic_results = fetch_posts_by_topics(topics) if topics else []
-
-    # Posts with lots of reactions/likes (broad "top" searches; not tied to specific people)
-    popular: list[dict] = []
-    token = (getattr(settings, "apify_api_token", None) or "").strip()
-    if token:
-        popular = fetch_popular_posts(token, max_posts=12)
-
-    out: dict = {"topics": topic_results, "popular": popular}
     if not topics:
-        out["message"] = "Add topic preferences (e.g. cars, ireland) via POST /preferences/topics for topic-based posts."
-    return out
+        return {
+            "topics": [],
+            "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
+        }
+    results = fetch_posts_by_topics(topics)
+    return {"topics": results}
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
