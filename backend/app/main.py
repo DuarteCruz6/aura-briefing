@@ -1112,120 +1112,52 @@ async def generate_personal_briefing(
     gl: str = "US",
 ):
     """
-    Generate a personal briefing by combining:
-    1. Latest post from each account the user follows (/sources/latest)
-    2. One article per topic interest (/feed/by-topics with max_per_topic=1)
-    3. A ~3-minute summary of all that content (/summaries/multi-url logic)
-    4. Podcast audio (WAV) via Gemini TTS - same as /summaries/multi-url
-    Returns the briefing WAV file. Headers: X-Duration-Seconds, X-Urls-Count.
+    Generate a personal briefing by gathering URLs from sources and topics,
+    then forwarding them to the /summaries/multi-url endpoint.
     """
     from app.services.feed_by_topics import fetch_articles_for_topic
     from app.services.latest_from_sources import fetch_latest_for_sources
-    from app.services.multi_url_summary import get_multi_url_summary
-
-    if not os.getenv("GEMINI_API_KEY"):
-        raise HTTPException(
-            status_code=503,
-            detail="GEMINI_API_KEY not set; briefing generation unavailable",
-        )
 
     urls: list[str] = []
-    sources_used: list[dict] = []
-    topics_used: list[dict] = []
 
-    try:
-        # 1) Latest from followed accounts
-        logger.info("Briefing: phase 1 - fetching latest from sources")
-        sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
-        if sources:
-            results = fetch_latest_for_sources(sources)
-            for r in results:
-                latest = r.get("latest")
-                if latest and latest.get("url"):
-                    u = latest["url"].strip()
-                    if u and u not in urls:
-                        urls.append(u)
-                        sources_used.append({"url": u, "title": latest.get("title"), "source_type": r.get("source_type")})
-        logger.info("Briefing: phase 1 done, urls=%s", len(urls))
+    # 1) Latest from followed accounts
+    logger.info("Briefing: phase 1 - fetching latest from sources")
+    sources = db.query(Source).filter(Source.user_id == user_id).order_by(Source.created_at.desc()).all()
+    if sources:
+        results = fetch_latest_for_sources(sources)
+        for r in results:
+            latest = r.get("latest")
+            if latest and latest.get("url"):
+                u = latest["url"].strip()
+                if u and u not in urls:
+                    urls.append(u)
 
-        # 2) One article per topic interest (guarantee at least one per topic when available)
-        logger.info("Briefing: phase 2 - fetching articles by topics")
-        topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
-        if topics:
-            per_topic = min(max(1, max_per_topic), 5)
-            for topic in topics:
-                topic = (topic or "").strip()
-                if not topic:
-                    continue
-                articles = fetch_articles_for_topic(topic, max_articles=5, hl=hl, gl=gl)
-                for art in articles[:per_topic]:
-                    u = (art.get("url") or "").strip()
-                    if u and u not in urls:
-                        urls.append(u)
-                        topics_used.append({"url": u, "title": art.get("title"), "topic": topic})
-                        break  # one per topic
-        logger.info("Briefing: phase 2 done, total urls=%s", len(urls))
+    # 2) One article per topic interest
+    logger.info("Briefing: phase 2 - fetching articles by topics")
+    topics = [p.topic for p in db.query(UserTopicPreference).filter(UserTopicPreference.user_id == user_id).all()]
+    if topics:
+        per_topic = min(max(1, max_per_topic), 5)
+        for topic in topics:
+            topic = (topic or "").strip()
+            if not topic:
+                continue
+            articles = fetch_articles_for_topic(topic, max_articles=5, hl=hl, gl=gl)
+            for art in articles[:per_topic]:
+                u = (art.get("url") or "").strip()
+                if u and u not in urls:
+                    urls.append(u)
+                    break  # one per topic
 
-        if not urls:
-            raise HTTPException(
-                status_code=400,
-                detail="No content to summarize. Add followed sources (POST /preferences/sources) and/or topic preferences (POST /preferences/topics).",
-            )
-
-        # 3) Generate summary
-        logger.info("Briefing: phase 3 - generating multi-url summary (%s urls)", len(urls))
-        summary = await asyncio.to_thread(get_multi_url_summary, urls, db)
-        if not (summary or "").strip():
-            raise HTTPException(status_code=503, detail="No summary generated")
-        logger.info("Briefing: phase 3 done")
-
-        # 3b) Save briefing text to DB (Run + Summary) so the AI assistant can use it
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        run = Run(
-            user_id=user_id,
-            status=RunStatus.COMPLETED,
-            started_at=now,
-            finished_at=now,
+    if not urls:
+        raise HTTPException(
+            status_code=400,
+            detail="No content to summarize. Add followed sources and/or topic preferences.",
         )
-        db.add(run)
-        db.flush()  # get run.id
-        db.add(Summary(run_id=run.id, content=summary.strip()))
-        db.commit()
 
-        # 4) Generate podcast audio
-        logger.info("Briefing: phase 4 - generating TTS audio")
-        from app.models.podcast_generation import text_to_audio
-        from app.models.podcast_generation.tts_generator import DEFAULT_MODEL_ID, DEFAULT_VOICE_ID
-
-        PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
-        path_str, duration_seconds = await asyncio.to_thread(
-            text_to_audio,
-            summary,
-            output_path,
-            voice_id=DEFAULT_VOICE_ID,
-            model_id=DEFAULT_MODEL_ID,
-        )
-        logger.info("Briefing: phase 4 done, success")
-        return FileResponse(
-            path_str,
-            media_type="audio/wav",
-            filename="briefing.wav",
-            headers={
-                "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
-                "X-Urls-Count": str(len(urls)),
-            },
-        )
-    except HTTPException:
-        raise
-    except ValueError as e:
-        logger.exception("Briefing failed (ValueError)")
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        logger.exception("Briefing failed at phase (see traceback above)")
-        raise HTTPException(status_code=502, detail=f"briefing failed: {type(e).__name__}: {e}")
-
+    logger.info("Briefing: forwarding %s urls to multi-url summary", len(urls))
+    
+    # 3) Forward directly to your existing endpoint logic
+    return await post_multi_url_summary(MultiUrlRequest(urls=urls), db)
 
 @app.get("/feed/by-topics")
 def get_feed_by_topics(
