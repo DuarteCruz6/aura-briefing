@@ -289,6 +289,33 @@ export const api = {
     }
     return res.blob();
   },
+  /** Generate podcast audio from text. Returns a Blob (WAV). */
+  async generatePodcast(text: string): Promise<Blob> {
+    const res = await fetch(url("/podcast/generate"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Podcast generation failed: ${res.status}`);
+    }
+    return res.blob();
+  },
+
+  /** Generate podcast audio from multiple URLs. Returns a Blob (WAV). */
+  async generatePodcastFromUrls(urls: string[]): Promise<Blob> {
+    const res = await fetch(url("/podcast/generate-from-urls"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ urls }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Podcast generation failed: ${res.status}`);
+    }
+    return res.blob();
+  },
 };
 
 export interface SourceEntry {

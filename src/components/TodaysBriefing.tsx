@@ -11,7 +11,7 @@ interface TodaysBriefingProps {
   onPause?: () => void;
 }
 
-const BRIEFING_AUDIO = "/audio/podcast.wav";
+const BRIEFING_AUDIO = ""; // Audio is generated on-demand by the backend
 
 export function TodaysBriefing({ frequency = "daily", onPlay, isPlaying, currentTrackTitle, onPause }: TodaysBriefingProps) {
   const freqLabel = frequency === "weekly" ? "This Week's" : frequency === "monthly" ? "This Month's" : "Today's";

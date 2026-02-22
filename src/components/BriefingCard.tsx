@@ -15,6 +15,7 @@ interface BriefingCardProps {
   audioUrl: string;
   isPremium: boolean;
   isCurrentlyPlaying?: boolean;
+  isGenerating?: boolean;
   onPlay?: (audioUrl: string, title: string) => void;
   onPause?: () => void;
   onPremiumClick?: () => void;
@@ -27,7 +28,7 @@ function getConfidenceColor(c: number) {
   return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
 }
 
-export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
+export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, isGenerating, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
@@ -123,15 +124,19 @@ export function BriefingCard({ title, description, duration, topics, confidence,
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (isGenerating) return;
                 if (isCurrentlyPlaying) {
                   onPause?.();
                 } else {
                   onPlay?.(audioUrl, title);
                 }
               }}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-200"
+              disabled={isGenerating}
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg transition-transform duration-200 ${isGenerating ? "opacity-70 animate-pulse" : "hover:scale-105"}`}
             >
-              {isCurrentlyPlaying ? (
+              {isGenerating ? (
+                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              ) : isCurrentlyPlaying ? (
                 <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-primary-foreground" />
               ) : (
                 <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5 fill-primary-foreground" />

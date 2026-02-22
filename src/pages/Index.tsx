@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
@@ -84,7 +85,9 @@ const Index = () => {
     confidence: 85,
     summary: `Your personalized podcast briefing covering the latest developments in ${favourites.map(f => f.label).join(", ")}.`,
     icon: <Headphones className="w-5 h-5" />,
-    audioUrl: "/audio/podcast.wav",
+    audioUrl: "",
+    generateText: `Give me a comprehensive briefing covering the latest news and developments in: ${favourites.map(f => f.label).join(", ")}. Keep it informative and engaging, like a podcast host.`,
+    generateUrls: undefined as string[] | undefined,
   }] : [];
 
   // Merge API briefings with favourite-generated briefings
@@ -105,16 +108,61 @@ const Index = () => {
     summary: b.error ? b.error : "Latest update from your followed source.",
     icon: sourceIconMap[b.source_type] ?? <Globe className="w-5 h-5" />,
     audioUrl: "",
+    generateText: undefined as string | undefined,
+    generateUrls: b.error ? undefined : [b.source_url],
   }));
 
   const filteredBriefings = [...favouriteBriefings, ...apiBriefingCards];
 
+  // Cache generated audio blob URLs so we don't regenerate
+  const audioCache = useRef<Record<string, string>>({});
+  const [generatingAudio, setGeneratingAudio] = useState<string | null>(null);
 
+  const handlePlay = useCallback(async (audioUrl: string, title: string) => {
+    // If there's already a cached or provided audio URL, play it directly
+    if (audioUrl) {
+      setCurrentTrack({ src: audioUrl, title });
+      setIsPlaying(true);
+      return;
+    }
 
-  const handlePlay = useCallback((audioUrl: string, title: string) => {
-    setCurrentTrack({ src: audioUrl, title });
-    setIsPlaying(true);
-  }, []);
+    // Find the briefing to generate audio for
+    const briefing = filteredBriefings.find(b => b.title === title);
+    if (!briefing) return;
+
+    // Check cache first
+    if (audioCache.current[title]) {
+      setCurrentTrack({ src: audioCache.current[title], title });
+      setIsPlaying(true);
+      return;
+    }
+
+    // Generate audio from backend
+    setGeneratingAudio(title);
+    toast.info("Generating your podcast audio…", { id: `gen-${title}` });
+
+    try {
+      let blob: Blob;
+      if (briefing.generateUrls?.length) {
+        blob = await api.generatePodcastFromUrls(briefing.generateUrls);
+      } else if (briefing.generateText) {
+        blob = await api.generatePodcast(briefing.generateText);
+      } else {
+        toast.error("No content available to generate audio", { id: `gen-${title}` });
+        setGeneratingAudio(null);
+        return;
+      }
+      const blobUrl = URL.createObjectURL(blob);
+      audioCache.current[title] = blobUrl;
+      setCurrentTrack({ src: blobUrl, title });
+      setIsPlaying(true);
+      toast.success("Podcast ready!", { id: `gen-${title}` });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate podcast", { id: `gen-${title}` });
+    } finally {
+      setGeneratingAudio(null);
+    }
+  }, [filteredBriefings]);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
@@ -197,10 +245,18 @@ const Index = () => {
                     filteredBriefings.map((b, i) => (
                       <BriefingCard
                         key={b.id}
-                        {...b}
+                        title={b.title}
+                        description={b.description}
+                        duration={b.duration}
+                        topics={b.topics}
+                        confidence={b.confidence}
+                        summary={b.summary}
+                        icon={b.icon}
+                        audioUrl={audioCache.current[b.title] || b.audioUrl}
                         index={i}
                         isPremium={isPremium}
                         isCurrentlyPlaying={isPlaying && currentTrack?.title === b.title}
+                        isGenerating={generatingAudio === b.title}
                         onPlay={handlePlay}
                         onPause={handlePause}
                         onPremiumClick={() => setPremiumOpen(true)}
