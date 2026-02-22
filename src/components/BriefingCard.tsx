@@ -17,6 +17,7 @@ interface BriefingCardProps {
   isPremium: boolean;
   isCurrentlyPlaying?: boolean;
   isGenerating?: boolean;
+  generatingProgress?: number;
   onPlay?: (id: string, audioUrl: string, title: string) => void;
   onPause?: () => void;
   onPremiumClick?: () => void;
@@ -29,7 +30,7 @@ function getConfidenceColor(c: number) {
   return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
 }
 
-export function BriefingCard({ id, title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, isGenerating, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
+export function BriefingCard({ id, title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, isGenerating, generatingProgress, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
@@ -91,58 +92,71 @@ export function BriefingCard({ id, title, description, duration, topics, confide
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <motion.button
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isPremium) {
-                  onVideoClick?.({ title, summary });
-                } else {
-                  onPremiumClick?.();
-                }
-              }}
-              className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground hover:bg-primary/15 hover:text-primary"
-              title={isPremium ? "Turn into video" : "Upgrade to Premium"}
-            >
-              <Clapperboard className="w-4 h-4 sm:w-5 sm:h-5" />
-            </motion.button>
-            <motion.button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleBookmark({ title, description, duration, topics, confidence });
-              }}
-              whileTap={{ scale: 0.85 }}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all ${
-                bookmarked
-                  ? "bg-primary/15 text-primary"
-                  : "bg-secondary/50 text-muted-foreground hover:text-primary"
-              }`}
-            >
-              <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 ${bookmarked ? "fill-primary scale-110" : ""}`} />
-            </motion.button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isGenerating) return;
-                if (isCurrentlyPlaying) {
-                  onPause?.();
-                } else {
-                  onPlay?.(id, audioUrl, title);
-                }
-              }}
-              disabled={isGenerating}
-              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg transition-transform duration-200 ${isGenerating ? "opacity-70" : "hover:scale-105"}`}
-            >
-              {isGenerating ? (
-                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : isCurrentlyPlaying ? (
-                <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-primary-foreground" />
-              ) : (
-                <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5 fill-primary-foreground" />
-              )}
-            </button>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <motion.button
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isPremium) {
+                    onVideoClick?.({ title, summary });
+                  } else {
+                    onPremiumClick?.();
+                  }
+                }}
+                className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all bg-secondary/50 text-muted-foreground hover:bg-primary/15 hover:text-primary"
+                title={isPremium ? "Turn into video" : "Upgrade to Premium"}
+              >
+                <Clapperboard className="w-4 h-4 sm:w-5 sm:h-5" />
+              </motion.button>
+              <motion.button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleBookmark({ title, description, duration, topics, confidence });
+                }}
+                whileTap={{ scale: 0.85 }}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all ${
+                  bookmarked
+                    ? "bg-primary/15 text-primary"
+                    : "bg-secondary/50 text-muted-foreground hover:text-primary"
+                }`}
+              >
+                <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 ${bookmarked ? "fill-primary scale-110" : ""}`} />
+              </motion.button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isGenerating) return;
+                  if (isCurrentlyPlaying) {
+                    onPause?.();
+                  } else {
+                    onPlay?.(id, audioUrl, title);
+                  }
+                }}
+                disabled={isGenerating}
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg transition-transform duration-200 ${isGenerating ? "opacity-70" : "hover:scale-105"}`}
+              >
+                {isGenerating ? (
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                ) : isCurrentlyPlaying ? (
+                  <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-primary-foreground" />
+                ) : (
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5 fill-primary-foreground" />
+                )}
+              </button>
+            </div>
+            {isGenerating && generatingProgress !== undefined && (
+              <div className="w-full min-w-[120px] max-w-[180px] space-y-0.5">
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300 ease-out rounded-full"
+                    style={{ width: `${generatingProgress}%` }}
+                  />
+                </div>
+                <p className="text-right text-[10px] sm:text-xs text-muted-foreground tabular-nums">{generatingProgress}%</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

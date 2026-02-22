@@ -6,6 +6,7 @@ Requires GEMINI_API_KEY (for TTS), moviepy, and Pillow.
 
 import re
 from pathlib import Path
+from typing import Callable
 
 # Video dimensions (16:9)
 VIDEO_WIDTH = 1280
@@ -160,6 +161,7 @@ def build_briefing_video(
     transcript_for_slides: str | None = None,
     voice_id: str | None = None,
     model_id: str | None = None,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> str:
     """
     Generate TTS from summary, create a slideshow of transcript segments synced to audio, mux to MP4.
@@ -171,6 +173,7 @@ def build_briefing_video(
         transcript_for_slides: Optional transcript (e.g. from DB) to split into slides; else summary is used.
         voice_id: Optional TTS voice (default from tts_generator).
         model_id: Optional TTS model (default from tts_generator).
+        progress_callback: Optional callback(percent: int) called with 0-100 during generation.
 
     Returns:
         Absolute path to the generated MP4 file.
@@ -181,6 +184,10 @@ def build_briefing_video(
     """
     from app.models.podcast_generation import text_to_audio
     from app.models.podcast_generation.tts_generator import DEFAULT_MODEL_ID, DEFAULT_VOICE_ID
+
+    def report(pct: int) -> None:
+        if progress_callback:
+            progress_callback(min(100, max(0, pct)))
 
     summary = (summary or "").strip()
     if not summary:
@@ -203,13 +210,17 @@ def build_briefing_video(
     frame_paths: list[Path] = []
 
     try:
-        # 1) TTS from summary
+        report(0)
+        # 1) TTS from summary (0 -> 25%)
+        tts_cb = (lambda p: report(p * 25 // 100)) if progress_callback else None
         _, duration_seconds = text_to_audio(
             summary,
             wav_path,
             voice_id=voice_id or DEFAULT_VOICE_ID,
             model_id=model_id or DEFAULT_MODEL_ID,
+            progress_callback=tts_cb,
         )
+        report(25)
         if not wav_path.is_file():
             raise ValueError("TTS did not produce audio file")
         total_duration = duration_seconds or 10.0
@@ -239,9 +250,10 @@ def build_briefing_video(
         if seg_sum > 0:
             segment_durations = [(d / seg_sum) * total_duration for d in segment_durations]
 
-        # 3) One frame per segment: try generated image, fallback to text slide
+        # 3) One frame per segment: try generated image, fallback to text slide (25 -> 75%)
         from app.models.video_generation.image_generator import generate_slide_image
 
+        n_seg = len(segments)
         for i, (seg, dur) in enumerate(zip(segments, segment_durations)):
             path = tmp_dir / f"frame_{i:03d}.png"
             frame_paths.append(path)
@@ -258,6 +270,8 @@ def build_briefing_video(
                     seg,
                     is_first=is_first,
                 )
+            if n_seg:
+                report(25 + 50 * (i + 1) // n_seg)
 
         # 4) Build clip per slide and concatenate
         clips = []
@@ -283,6 +297,7 @@ def build_briefing_video(
                 ic.fps = VIDEO_FPS
             clips = [ic]
 
+        report(85)
         video_clip = concatenate_videoclips(clips, method="compose")
         video_clip = video_clip.with_audio(audio_clip) if hasattr(video_clip, "with_audio") else video_clip.set_audio(audio_clip)
 
@@ -293,6 +308,7 @@ def build_briefing_video(
             fps=VIDEO_FPS,
             logger=None,
         )
+        report(100)
 
         video_clip.close()
         audio_clip.close()

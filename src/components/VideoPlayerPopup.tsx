@@ -23,6 +23,7 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
   useEffect(() => {
     if (!open) {
       setStatus("idle");
+      setProgress(0);
       setErrorMessage(null);
       if (videoUrl) {
         URL.revokeObjectURL(videoUrl);
@@ -31,7 +32,9 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
     }
   }, [open, videoUrl]);
 
-  // When popup opens with summary, start video generation
+  const [progress, setProgress] = useState(0);
+
+  // When popup opens with summary, start video generation (real progress via backend SSE)
   useEffect(() => {
     if (!open) return;
     if (!summary?.trim() || !isPremium) {
@@ -45,11 +48,13 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
     let cancelled = false;
     setStatus("loading");
     setErrorMessage(null);
+    setProgress(0);
 
     api
-      .generateVideo({ title, summary }, true)
+      .generateVideo({ title, summary }, true, { onProgress: setProgress })
       .then((blob) => {
         if (cancelled) return;
+        setProgress(100);
         const url = URL.createObjectURL(blob);
         setVideoUrl(url);
         setStatus("ready");
@@ -95,9 +100,18 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
 
             <div className="relative aspect-video bg-background flex items-center justify-center">
               {status === "loading" && (
-                <div className="flex flex-col items-center gap-4">
+                <div className="flex flex-col items-center gap-4 w-full max-w-sm px-6">
                   <Loader2 className="w-12 h-12 text-primary animate-spin" />
                   <p className="text-sm text-muted-foreground">Generating video…</p>
+                  <div className="w-full space-y-2">
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-300 ease-out rounded-full"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <p className="text-center text-sm font-medium text-foreground tabular-nums">{progress}%</p>
+                  </div>
                   <p className="text-xs text-muted-foreground/80">TTS + visuals, this may take a moment.</p>
                 </div>
               )}

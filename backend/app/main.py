@@ -3,12 +3,13 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import traceback
 import uuid
 from pathlib import Path
 
 from contextlib import asynccontextmanager
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -38,6 +39,11 @@ from app.models.database import (
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 logger = logging.getLogger(__name__)
+
+# Progress store for real-time generation progress (video/audio). Key = token, value = {progress, done, error}.
+_progress_store: dict[str, dict] = {}
+_progress_lock = threading.Lock()
+PROGRESS_HEADER = "x-progress-token"
 
 
 class TranscribeRequest(BaseModel):
@@ -1204,6 +1210,7 @@ def briefing_preview(
 
 @app.post("/briefing/generate")
 async def generate_personal_briefing(
+    request: Request,
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
     max_per_topic: int = 1,
@@ -1214,6 +1221,7 @@ async def generate_personal_briefing(
     Generate a personal briefing by gathering URLs from sources and topics,
     then summarizing and generating TTS. Audio is cached in the DB so repeated
     plays return the same file without regenerating.
+    Optional header X-Progress-Token for real-time progress via GET /progress?token=.
     """
     from app.models.podcast_generation import text_to_audio
     from app.models.podcast_generation.tts_generator import (
@@ -1242,28 +1250,69 @@ async def generate_personal_briefing(
             },
         )
 
+    progress_token = (request.headers.get(PROGRESS_HEADER) or "").strip() or None
+    if progress_token:
+        with _progress_lock:
+            _progress_store[progress_token] = {"progress": 0, "done": False, "error": None}
+
+    def audio_progress_callback(pct: int) -> None:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    # TTS is 40-100% of total
+                    _progress_store[progress_token]["progress"] = 40 + (pct * 60 // 100)
+
     logger.info("Briefing: gathering URLs from sources and topics")
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["progress"] = 10
     urls = _get_briefing_urls(user_id, db, max_per_topic=max_per_topic, hl=hl, gl=gl)
     if not urls:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
         raise HTTPException(
             status_code=400,
             detail="No content to summarize. Add followed sources and/or topic preferences.",
         )
 
     if not os.getenv("GEMINI_API_KEY"):
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
         raise HTTPException(
             status_code=503,
             detail="GEMINI_API_KEY not set; summary + podcast generation unavailable",
         )
 
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["progress"] = 20
     try:
         summary = await asyncio.to_thread(get_multi_url_summary, urls, db)
     except ValueError as e:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=503, detail=str(e))
 
     if not (summary or "").strip():
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
         raise HTTPException(status_code=503, detail="No summary generated")
 
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["progress"] = 40
     output_dir = _get_podcast_output_dir() / "cache" / str(user_id)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "personal.wav"
@@ -1275,11 +1324,28 @@ async def generate_personal_briefing(
             output_path,
             voice_id=DEFAULT_VOICE_ID,
             model_id=DEFAULT_MODEL_ID,
+            progress_callback=audio_progress_callback,
         )
     except ValueError as e:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=502, detail=str(e))
+
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["done"] = True
+                _progress_store[progress_token]["progress"] = 100
 
     # Upsert cache row (one per user + key)
     existing = (
@@ -1336,6 +1402,44 @@ def get_personal_briefing_transcript(
     if not cached or not (cached.transcript or "").strip():
         raise HTTPException(status_code=404, detail="No transcript available for personal briefing")
     return {"transcript": cached.transcript}
+
+
+@app.get("/progress")
+async def progress_sse(token: str):
+    """
+    Server-Sent Events stream for generation progress. Client sends ?token=<uuid>.
+    Events: data: {"progress": 0-100, "done": bool, "error": str?}
+    Open this before or with the POST that sends X-Progress-Token with the same token.
+    """
+    if not token or len(token) > 64:
+        raise HTTPException(status_code=400, detail="Invalid progress token")
+
+    async def stream():
+        last_progress = -1
+        while True:
+            with _progress_lock:
+                entry = _progress_store.get(token)
+            if entry is None:
+                # Not started yet; send 0
+                yield f"data: {json.dumps({'progress': 0, 'done': False})}\n\n"
+            else:
+                p = entry.get("progress", 0)
+                done = entry.get("done", False)
+                err = entry.get("error")
+                if p != last_progress or done:
+                    last_progress = p
+                    yield f"data: {json.dumps({'progress': p, 'done': done, 'error': err})}\n\n"
+                if done:
+                    with _progress_lock:
+                        _progress_store.pop(token, None)
+                    break
+            await asyncio.sleep(0.25)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/feed/by-topics")
@@ -1420,6 +1524,7 @@ def _urls_cache_key(urls: list[str]) -> str:
 @app.post("/podcast/generate-from-urls")
 async def generate_podcast_from_urls(
     body: PodcastFromUrlsRequest,
+    request: Request,
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -1427,7 +1532,7 @@ async def generate_podcast_from_urls(
     Generate podcast audio from multiple URLs: fetch/summarize content from each URL,
     then turn the combined summary into speech via Gemini TTS. Returns a WAV file.
     Audio is cached per user + URLs so repeated requests return the same file.
-    Requires GEMINI_API_KEY.
+    Optional header X-Progress-Token for real-time progress via GET /progress?token=.
     """
     from app.models.podcast_generation import text_to_audio
     from app.models.podcast_generation.tts_generator import (
@@ -1464,14 +1569,42 @@ async def generate_podcast_from_urls(
             },
         )
 
+    progress_token = (request.headers.get(PROGRESS_HEADER) or "").strip() or None
+    if progress_token:
+        with _progress_lock:
+            _progress_store[progress_token] = {"progress": 0, "done": False, "error": None}
+
+    def audio_progress_callback(pct: int) -> None:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["progress"] = 40 + (pct * 60 // 100)
+
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["progress"] = 5
     try:
         summary = await asyncio.to_thread(get_multi_url_summary, body.urls, db)
     except ValueError as e:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=503, detail=str(e))
 
     if not (summary or "").strip():
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
         raise HTTPException(status_code=503, detail="No summary generated")
 
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["progress"] = 40
     output_dir = PODCAST_OUTPUT_DIR / "cache" / str(user_id)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{hashlib.sha256(cache_key.encode()).hexdigest()[:16]}.wav"
@@ -1483,11 +1616,28 @@ async def generate_podcast_from_urls(
             output_path,
             voice_id=DEFAULT_VOICE_ID,
             model_id=DEFAULT_MODEL_ID,
+            progress_callback=audio_progress_callback,
         )
     except ValueError as e:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=502, detail=str(e))
+
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["done"] = True
+                _progress_store[progress_token]["progress"] = 100
 
     existing = (
         db.query(CachedBriefingAudio)
@@ -1575,6 +1725,16 @@ async def generate_video(
 
     VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = VIDEO_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp4"
+    progress_token = (request.headers.get(PROGRESS_HEADER) or "").strip() or None
+    if progress_token:
+        with _progress_lock:
+            _progress_store[progress_token] = {"progress": 0, "done": False, "error": None}
+
+    def video_progress_callback(pct: int) -> None:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["progress"] = pct
 
     try:
         from app.models.video_generation import build_briefing_video
@@ -1585,11 +1745,28 @@ async def generate_video(
             summary,
             output_path,
             transcript_for_slides=transcript_for_slides,
+            progress_callback=video_progress_callback,
         )
     except ValueError as e:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=502, detail=str(e))
+
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["done"] = True
+                _progress_store[progress_token]["progress"] = 100
 
     return FileResponse(
         path_str,
@@ -1599,10 +1776,11 @@ async def generate_video(
 
 
 @app.post("/podcast/generate")
-async def generate_podcast(body: PodcastGenerateRequest):
+async def generate_podcast(body: PodcastGenerateRequest, request: Request):
     """
     Generate podcast audio from script text using Gemini TTS.
     Returns a WAV file. Requires GEMINI_API_KEY.
+    Optional header X-Progress-Token: <uuid> for real-time progress via GET /progress?token=<uuid>.
     """
     if not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(
@@ -1622,6 +1800,17 @@ async def generate_podcast(body: PodcastGenerateRequest):
     PODCAST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = PODCAST_OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
 
+    progress_token = (request.headers.get(PROGRESS_HEADER) or "").strip() or None
+    if progress_token:
+        with _progress_lock:
+            _progress_store[progress_token] = {"progress": 0, "done": False, "error": None}
+
+    def audio_progress_callback(pct: int) -> None:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["progress"] = pct
+
     # Treat placeholder "string" (e.g. from OpenAPI/Swagger) as unset
     voice_id = body.voice_id if (body.voice_id and body.voice_id.strip().lower() != "string") else None
     model_id = body.model_id if (body.model_id and body.model_id.strip().lower() != "string") else None
@@ -1633,11 +1822,28 @@ async def generate_podcast(body: PodcastGenerateRequest):
             output_path,
             voice_id=voice_id or DEFAULT_VOICE_ID,
             model_id=model_id or DEFAULT_MODEL_ID,
+            progress_callback=audio_progress_callback,
         )
     except ValueError as e:
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
+        if progress_token:
+            with _progress_lock:
+                if progress_token in _progress_store:
+                    _progress_store[progress_token]["done"] = True
+                    _progress_store[progress_token]["error"] = str(e)
         raise HTTPException(status_code=502, detail=str(e))
+
+    if progress_token:
+        with _progress_lock:
+            if progress_token in _progress_store:
+                _progress_store[progress_token]["done"] = True
+                _progress_store[progress_token]["progress"] = 100
 
     # Gemini TTS outputs WAV
     is_wav = path_str.lower().endswith(".wav")

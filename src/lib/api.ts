@@ -30,6 +30,24 @@ function authHeaders(): Record<string, string> {
   }
 }
 
+/** Subscribe to real-time progress via SSE. Returns token (for X-Progress-Token header) and close(). */
+function subscribeProgress(onProgress: (p: number) => void): { token: string; close: () => void } {
+  const token = crypto.randomUUID();
+  const progressUrl = `${url("/progress")}?token=${encodeURIComponent(token)}`;
+  const es = new EventSource(progressUrl);
+  es.onmessage = (e: MessageEvent) => {
+    try {
+      const d = JSON.parse(e.data) as { progress?: number; done?: boolean };
+      if (typeof d.progress === "number") onProgress(d.progress);
+      if (d.done) es.close();
+    } catch {
+      // ignore parse errors
+    }
+  };
+  es.onerror = () => es.close();
+  return { token, close: () => es.close() };
+}
+
 export const api = {
   async getHealth(): Promise<{ status: string }> {
     const res = await fetch(url("/health"));
@@ -263,76 +281,126 @@ export const api = {
 
   /**
    * Generate video briefing (TTS + simple visual). Premium only; send isPremium true to set header.
-   * Returns blob for the MP4 file.
+   * Returns blob for the MP4 file. Pass onProgress for real-time progress (0-100).
    */
   async generateVideo(
     payload: { title: string; summary: string },
-    isPremium: boolean
+    isPremium: boolean,
+    options?: { onProgress?: (p: number) => void }
   ): Promise<Blob> {
-    const res = await fetch(url("/video/generate"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-        ...(isPremium ? { "X-Premium": "true" } : {}),
-      },
-      body: JSON.stringify({
-        title: payload.title,
-        summary: payload.summary,
-      }),
-    });
-    if (res.status === 403) {
-      throw new Error("Premium subscription required to generate video briefings");
+    let progressClose: (() => void) | undefined;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(isPremium ? { "X-Premium": "true" } : {}),
+    };
+    if (options?.onProgress) {
+      const sub = subscribeProgress(options.onProgress);
+      progressClose = sub.close;
+      headers["X-Progress-Token"] = sub.token;
     }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail ?? `Video generation failed: ${res.status}`);
+    try {
+      const res = await fetch(url("/video/generate"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ title: payload.title, summary: payload.summary }),
+      });
+      if (res.status === 403) {
+        throw new Error("Premium subscription required to generate video briefings");
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? `Video generation failed: ${res.status}`);
+      }
+      return res.blob();
+    } finally {
+      progressClose?.();
     }
-    return res.blob();
   },
-  /** Generate podcast audio from text. Returns a Blob (WAV). */
-  async generatePodcast(text: string): Promise<Blob> {
-    const res = await fetch(url("/podcast/generate"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail ?? `Podcast generation failed: ${res.status}`);
+  /** Generate podcast audio from text. Returns a Blob (WAV). Pass onProgress for real-time progress (0-100). */
+  async generatePodcast(
+    text: string,
+    options?: { onProgress?: (p: number) => void }
+  ): Promise<Blob> {
+    let progressClose: (() => void) | undefined;
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
+    if (options?.onProgress) {
+      const sub = subscribeProgress(options.onProgress);
+      progressClose = sub.close;
+      headers["X-Progress-Token"] = sub.token;
     }
-    return res.blob();
+    try {
+      const res = await fetch(url("/podcast/generate"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? `Podcast generation failed: ${res.status}`);
+      }
+      return res.blob();
+    } finally {
+      progressClose?.();
+    }
   },
 
-  /** Generate podcast audio from multiple URLs. Returns a Blob (WAV). */
-  async generatePodcastFromUrls(urls: string[]): Promise<Blob> {
-    const res = await fetch(url("/podcast/generate-from-urls"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ urls }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail ?? `Podcast generation failed: ${res.status}`);
+  /** Generate podcast audio from multiple URLs. Returns a Blob (WAV). Pass onProgress for real-time progress (0-100). */
+  async generatePodcastFromUrls(
+    urls: string[],
+    options?: { onProgress?: (p: number) => void }
+  ): Promise<Blob> {
+    let progressClose: (() => void) | undefined;
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
+    if (options?.onProgress) {
+      const sub = subscribeProgress(options.onProgress);
+      progressClose = sub.close;
+      headers["X-Progress-Token"] = sub.token;
     }
-    return res.blob();
+    try {
+      const res = await fetch(url("/podcast/generate-from-urls"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ urls }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? `Podcast generation failed: ${res.status}`);
+      }
+      return res.blob();
+    } finally {
+      progressClose?.();
+    }
   },
 
   /**
    * Generate personal briefing audio from the user's sources and topics.
    * Fetches content, summarizes with LLM, then TTS. Returns a Blob (WAV).
-   * Use this for the "Your Daily Briefing" card instead of sending a prompt to TTS.
+   * Pass onProgress for real-time progress (0-100).
    */
-  async generatePersonalBriefingAudio(): Promise<Blob> {
-    const res = await fetch(url("/briefing/generate"), {
-      method: "POST",
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail ?? `Briefing generation failed: ${res.status}`);
+  async generatePersonalBriefingAudio(options?: {
+    onProgress?: (p: number) => void;
+  }): Promise<Blob> {
+    let progressClose: (() => void) | undefined;
+    const headers = { ...authHeaders() };
+    if (options?.onProgress) {
+      const sub = subscribeProgress(options.onProgress);
+      progressClose = sub.close;
+      (headers as Record<string, string>)["X-Progress-Token"] = sub.token;
     }
-    return res.blob();
+    try {
+      const res = await fetch(url("/briefing/generate"), {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? `Briefing generation failed: ${res.status}`);
+      }
+      return res.blob();
+    } finally {
+      progressClose?.();
+    }
   },
 
   /** Get the saved transcript for the user's personal briefing. 404 if none. */

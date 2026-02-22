@@ -8,6 +8,7 @@ Long scripts are split into chunks to avoid API truncation; chunks are concatena
 import os
 import wave
 from pathlib import Path
+from typing import Callable
 
 
 # Gemini TTS model (single- and multi-speaker)
@@ -99,6 +100,7 @@ def text_to_audio(
     voice_id: str = DEFAULT_VOICE_NAME,
     model_id: str = DEFAULT_MODEL_ID,
     output_format: str | None = None,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> tuple[str, float | None]:
     """
     Convert script text to podcast audio using Gemini TTS and save to WAV.
@@ -110,6 +112,7 @@ def text_to_audio(
         voice_id: Ignored (kept for API compatibility). Use voice_name via model_id overload if needed.
         model_id: TTS model (default: gemini-2.5-flash-preview-tts).
         output_format: Ignored; Gemini TTS outputs WAV.
+        progress_callback: Optional callback(percent: int) called with 0-100 during generation.
 
     Returns:
         Tuple of (absolute output path, duration_seconds or None if unknown).
@@ -148,22 +151,31 @@ def text_to_audio(
     if not chunks:
         raise ValueError("text is required and cannot be empty")
 
+    def report(pct: int) -> None:
+        if progress_callback:
+            progress_callback(pct)
+
+    report(0)
     if len(chunks) == 1:
         # Single chunk: one API call, write directly
         data = _tts_single_chunk(client, chunks[0], voice_name, model_id)
+        report(50)
         with wave.open(str(output_path), "wb") as wf:
             wf.setnchannels(GEMINI_TTS_CHANNELS)
             wf.setsampwidth(GEMINI_TTS_SAMPLE_WIDTH)
             wf.setframerate(GEMINI_TTS_SAMPLE_RATE)
             wf.writeframes(data)
+        report(100)
     else:
         # Multiple chunks: TTS each, concatenate PCM, write one WAV
         all_frames = b""
-        for chunk in chunks:
+        n = len(chunks)
+        for i, chunk in enumerate(chunks):
             if not chunk.strip():
                 continue
             data = _tts_single_chunk(client, chunk, voice_name, model_id)
             all_frames += data
+            report(min(90, (i + 1) * 90 // n))
         if not all_frames:
             raise ValueError("Gemini TTS returned no audio")
         with wave.open(str(output_path), "wb") as wf:
@@ -171,6 +183,7 @@ def text_to_audio(
             wf.setsampwidth(GEMINI_TTS_SAMPLE_WIDTH)
             wf.setframerate(GEMINI_TTS_SAMPLE_RATE)
             wf.writeframes(all_frames)
+        report(100)
 
     duration_seconds = _get_wav_duration(output_path)
     return str(output_path), duration_seconds
