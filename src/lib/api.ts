@@ -200,6 +200,17 @@ export const api = {
     return res.json();
   },
 
+  /**
+   * Get the single suggested YouTube video (highest view count across user's topic preferences).
+   * Requires GOOGLE_API_KEY on the backend. Returns video + topic or null when user has no topics.
+   */
+  async getFeedYoutubeByTopics(params?: { min_views?: number }): Promise<YoutubeFeedByTopicsResponse> {
+    const qs = params?.min_views != null ? `?min_views=${params.min_views}` : "";
+    const res = await fetch(url(`/feed/youtube-by-topics${qs}`), { headers: authHeaders() });
+    if (!res.ok) throw new Error(`Failed to fetch YouTube feed: ${res.status}`);
+    return res.json();
+  },
+
   /** List bookmarks (saved briefings). */
   async getBookmarks(): Promise<BookmarkEntry[]> {
     const res = await fetch(url("/bookmarks"), { headers: authHeaders() });
@@ -463,6 +474,22 @@ export interface FeedByTopicsTopic {
 export interface FeedByTopicsResponse {
   topics: FeedByTopicsTopic[];
   message?: string;
+}
+
+/** YouTube video from GET /feed/youtube-by-topics. */
+export interface YoutubeFeedVideo {
+  url: string;
+  title: string;
+  published_at: string | null;
+  channel_title: string;
+  view_count: number | null;
+}
+
+export interface YoutubeFeedByTopicsResponse {
+  video: YoutubeFeedVideo | null;
+  topic: string | null;
+  message?: string;
+  error?: string;
 }
 
 export interface BookmarkEntry {
