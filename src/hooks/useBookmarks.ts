@@ -48,14 +48,28 @@ export function useBookmarks() {
       if (!user) return;
       const existing = bookmarks.find((b) => b.title === briefing.title);
       if (existing) {
+        // Optimistic: remove from UI immediately
+        const removed = existing;
+        setBookmarks((prev) => prev.filter((b) => b.id !== removed.id));
         try {
-          await api.deleteBookmark(existing.id);
-          setBookmarks((prev) => prev.filter((b) => b.id !== existing.id));
+          await api.deleteBookmark(removed.id);
         } catch {
-          // keep state unchanged on error
+          setBookmarks((prev) => [removed, ...prev]);
         }
         return;
       }
+      // Optimistic: add placeholder so UI updates immediately
+      const optimistic: BookmarkEntry = {
+        id: -1,
+        title: briefing.title,
+        description: briefing.description ?? null,
+        duration: briefing.duration ?? null,
+        topics: briefing.topics ?? [],
+        summary: null,
+        audio_url: null,
+        created_at: new Date().toISOString(),
+      };
+      setBookmarks((prev) => [optimistic, ...prev]);
       try {
         const created = await api.addBookmark({
           title: briefing.title,
@@ -65,22 +79,28 @@ export function useBookmarks() {
           summary: undefined,
           audio_url: undefined,
         });
-        setBookmarks((prev) => [created, ...prev]);
+        setBookmarks((prev) => prev.map((b) => (b.id === -1 && b.title === briefing.title ? created : b)));
       } catch {
-        // keep state unchanged on error
+        setBookmarks((prev) => prev.filter((b) => !(b.id === -1 && b.title === briefing.title)));
       }
     },
     [user, bookmarks]
   );
 
   const removeBookmark = useCallback(async (bookmarkId: number) => {
+    if (bookmarkId === -1) {
+      setBookmarks((prev) => prev.filter((b) => b.id !== -1));
+      return;
+    }
+    const removed = bookmarks.find((b) => b.id === bookmarkId);
+    setBookmarks((prev) => prev.filter((b) => b.id !== bookmarkId));
     try {
       await api.deleteBookmark(bookmarkId);
-      setBookmarks((prev) => prev.filter((b) => b.id !== bookmarkId));
     } catch {
-      // keep state unchanged on error
+      if (removed) setBookmarks((prev) => [removed, ...prev]);
+      else loadBookmarks();
     }
-  }, []);
+  }, [bookmarks, loadBookmarks]);
 
   return {
     bookmarks,
