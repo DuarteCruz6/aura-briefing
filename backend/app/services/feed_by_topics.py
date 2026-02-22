@@ -7,12 +7,15 @@ them to actual article URLs so get_or_extract_summary can fetch the real content
 from __future__ import annotations
 
 import base64
+import logging
 import re
 from urllib.parse import quote_plus
 
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # User-Agent for Google News (polite scraping)
 USER_AGENT = "AuraBriefing/1.0 (Feed Reader; +https://github.com)"
@@ -169,9 +172,19 @@ def _fetch_articles_newsapi(
             timeout=12.0,
         )
         if r.status_code != 200:
+            logger.warning(
+                "NewsAPI non-200: status=%s body=%s (free tier is development-only; production needs paid plan)",
+                r.status_code,
+                r.text[:500],
+            )
             return []
         data = r.json()
         if data.get("status") != "ok":
+            msg = data.get("message", data.get("code", r.text[:200]))
+            logger.warning(
+                "NewsAPI status not ok: %s (free tier is development-only; production needs paid plan)",
+                msg,
+            )
             return []
         results = []
         for art in data.get("articles") or []:
@@ -187,7 +200,8 @@ def _fetch_articles_newsapi(
             if len(results) >= max_articles:
                 break
         return results
-    except Exception:
+    except Exception as e:
+        logger.warning("NewsAPI request failed: %s", e, exc_info=True)
         return []
 
 
