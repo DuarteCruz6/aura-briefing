@@ -139,12 +139,33 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
     }
   }, [playing, onPlayingChange]);
 
-  const handleVolumeChange = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const volumeBarRef = useRef<HTMLDivElement>(null);
+
+  const calcVolumePct = useCallback((clientX: number) => {
+    const bar = volumeBarRef.current;
+    if (!bar) return 0;
+    const rect = bar.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, []);
+
+  const handleVolumeDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const pct = calcVolumePct(e.clientX);
     setVolume(pct);
     if (audioRef.current) audioRef.current.volume = pct;
-  }, []);
+
+    const onMove = (ev: MouseEvent) => {
+      const p = calcVolumePct(ev.clientX);
+      setVolume(p);
+      if (audioRef.current) audioRef.current.volume = p;
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [calcVolumePct]);
 
   return (
     <motion.div
@@ -192,14 +213,14 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
             </button>
             <button onClick={() => skip(-10)} className="relative text-muted-foreground hover:text-foreground transition-colors" title="Back 10 seconds">
               <RotateCcw className="w-5 h-5" />
-              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px] pointer-events-none">10</span>
             </button>
             <button onClick={togglePlay} className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center hover:scale-105 transition-transform">
               {playing ? <Pause className="w-4 h-4 text-background" /> : <Play className="w-4 h-4 text-background ml-0.5" />}
             </button>
             <button onClick={() => skip(10)} className="relative text-muted-foreground hover:text-foreground transition-colors" title="Forward 10 seconds">
               <RotateCw className="w-5 h-5" />
-              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px]">10</span>
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold mt-[1px] pointer-events-none">10</span>
             </button>
             <button onClick={onSkipNext} disabled={!hasNext} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none" title="Next briefing">
               <SkipForward className="w-4 h-4" />
@@ -241,7 +262,7 @@ export function AudioPlayer({ src, trackTitle, externalPlaying, onPlayingChange,
           </button>
           <div className="hidden sm:flex items-center gap-2">
             <Volume2 className="w-4 h-4 text-muted-foreground shrink-0" />
-            <div className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onClick={handleVolumeChange}>
+            <div ref={volumeBarRef} className="w-20 h-1 bg-secondary rounded-full overflow-hidden cursor-pointer" onMouseDown={handleVolumeDown}>
               <div className="h-full bg-muted-foreground rounded-full" style={{ width: `${volume * 100}%` }} />
             </div>
           </div>
