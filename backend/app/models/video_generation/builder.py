@@ -15,7 +15,8 @@ VIDEO_FPS = 30
 # Slide text: max chars per line and max lines per slide for readability
 MAX_CHARS_PER_LINE = 52
 MAX_LINES_PER_SLIDE = 6
-TARGET_SEGMENT_CHARS = 180  # aim for ~1–2 sentences per slide
+TARGET_SEGMENT_CHARS = 380  # larger chunks = fewer slides, each stays on screen longer
+MIN_SLIDE_DURATION = 5.0    # seconds; no slide shorter than this (then re-normalized to audio length)
 
 
 def _split_into_slides(text: str) -> list[str]:
@@ -228,21 +229,35 @@ def build_briefing_video(
 
         # 2) Per-segment duration by character ratio (approximate sync to what’s being said)
         total_chars = sum(len(s) for s in segments)
-        segment_durations = [
+        raw_durations = [
             (len(s) / total_chars) * total_duration if total_chars else total_duration / len(segments)
             for s in segments
         ]
+        # Enforce minimum duration per slide, then re-normalize so total still matches audio
+        segment_durations = [max(d, MIN_SLIDE_DURATION) for d in raw_durations]
+        seg_sum = sum(segment_durations)
+        if seg_sum > 0:
+            segment_durations = [(d / seg_sum) * total_duration for d in segment_durations]
 
-        # 3) One frame per segment
+        # 3) One frame per segment: try generated image, fallback to text slide
+        from app.models.video_generation.image_generator import generate_slide_image
+
         for i, (seg, dur) in enumerate(zip(segments, segment_durations)):
             path = tmp_dir / f"frame_{i:03d}.png"
             frame_paths.append(path)
-            _make_slide_frame(
-                path,
-                title or "Briefing",
+            is_first = i == 0
+            if not generate_slide_image(
                 seg,
-                is_first=(i == 0),
-            )
+                path,
+                title=title or None,
+                is_first=is_first,
+            ):
+                _make_slide_frame(
+                    path,
+                    title or "Briefing",
+                    seg,
+                    is_first=is_first,
+                )
 
         # 4) Build clip per slide and concatenate
         clips = []
