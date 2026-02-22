@@ -110,7 +110,7 @@ export function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => v
           animate={{ width: 380, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="h-full border-l border-border/50 bg-sidebar/80 backdrop-blur-xl flex flex-col overflow-hidden flex-shrink-0"
+          className="fixed inset-y-0 right-0 z-50 h-full border-l border-border/50 bg-sidebar/80 backdrop-blur-xl flex flex-col overflow-hidden w-[380px]"
         >
           {/* Header */}
           <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
