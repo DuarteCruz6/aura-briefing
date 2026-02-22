@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
+import { MessageSquare, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { useFavourites } from "../hooks/useFavourites";
@@ -11,9 +11,7 @@ import { BriefingCard } from "../components/BriefingCard";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { useChat } from "../contexts/ChatContext";
 import { useAudio } from "../contexts/AudioContext";
-import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
-import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
 import { api } from "../lib/api";
 import { getSourceDisplayName } from "../lib/utils";
 
@@ -31,7 +29,6 @@ const Index = () => {
   ];
   const hasFavourites = favouriteLabels.length > 0;
   const { chatOpen, setChatOpen } = useChat();
-  const [premiumOpen, setPremiumOpen] = useState(false);
   const {
     currentTrack,
     isPlaying,
@@ -43,19 +40,6 @@ const Index = () => {
     setCachedUrl,
     setPlaylist,
   } = useAudio();
-  const [videoBriefing, setVideoBriefing] = useState<{ title: string; summary: string } | null>(null);
-  const [isPremium, setIsPremium] = useState(() => {
-    const trial = localStorage.getItem("briefcast_trial");
-    if (trial !== "active") return false;
-    const start = localStorage.getItem("briefcast_trial_start");
-    if (!start) { localStorage.removeItem("briefcast_trial"); return false; }
-    if (Date.now() - new Date(start).getTime() > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem("briefcast_trial");
-      localStorage.removeItem("briefcast_trial_start");
-      return false;
-    }
-    return true;
-  });
   const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
   const [briefingsLoading, setBriefingsLoading] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
@@ -73,13 +57,6 @@ const Index = () => {
     }, 35);
     return () => clearInterval(id);
   }, [generatingAudio]);
-
-  // Re-check premium + frequency when popup closes or page focuses
-  useEffect(() => {
-    if (!premiumOpen) {
-      setIsPremium(localStorage.getItem("briefcast_trial") === "active");
-    }
-  }, [premiumOpen]);
 
   useEffect(() => {
     const checkFrequency = () => setFrequency(localStorage.getItem("briefcast_frequency") || "daily");
@@ -226,13 +203,6 @@ const Index = () => {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setPremiumOpen(true)}
-                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs sm:text-sm font-medium hover:bg-primary/20 transition-colors"
-                >
-                  <Crown className="w-4 h-4" />
-                  <span className="hidden sm:inline">Premium</span>
-                </button>
-                <button
                   onClick={() => setChatOpen(!chatOpen)}
                   className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-medium hover:bg-secondary/80 transition-colors"
                 >
@@ -273,20 +243,15 @@ const Index = () => {
                         icon={b.icon}
                         audioUrl={getCachedUrl(b.id) || b.audioUrl}
                         index={i}
-                        isPremium={isPremium}
                         isCurrentlyPlaying={isPlaying && currentTrack?.id === b.id}
                         isGenerating={generatingAudio === b.id}
                         generatingProgress={generatingAudio === b.id ? audioProgress : undefined}
                         onPlay={handlePlay}
                         onPause={pause}
-                        onPremiumClick={() => setPremiumOpen(true)}
-                        onVideoClick={(br) => setVideoBriefing(br ? { title: br.title, summary: br.summary ?? "" } : null)}
                       />
                     ))
                   )}
                 </div>
-
-                <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} onTrialActivated={() => setIsPremium(true)} />
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -311,13 +276,6 @@ const Index = () => {
       </main>
 
       <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
-      <VideoPlayerPopup
-        open={!!videoBriefing}
-        onClose={() => setVideoBriefing(null)}
-        title={videoBriefing?.title ?? ""}
-        summary={videoBriefing?.summary ?? ""}
-        isPremium={isPremium}
-      />
     </div>
   );
 };

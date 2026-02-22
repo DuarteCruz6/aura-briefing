@@ -7,8 +7,6 @@ import { useBookmarks } from "../hooks/useBookmarks";
 import { useAudio } from "../contexts/AudioContext";
 import { BriefingCard } from "../components/BriefingCard";
 import { BackgroundEffects } from "../components/BackgroundEffects";
-import { PremiumBanner } from "../components/PremiumBanner";
-import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
@@ -26,33 +24,10 @@ const Bookmarks = () => {
     setCachedUrl,
     setPlaylist,
   } = useAudio();
-  const [premiumOpen, setPremiumOpen] = useState(false);
-  const [videoBriefing, setVideoBriefing] = useState<{ title: string; summary: string } | null>(null);
-  const [isPremium, setIsPremium] = useState(() => {
-    const trial = localStorage.getItem("briefcast_trial");
-    if (trial !== "active") return false;
-    const start = localStorage.getItem("briefcast_trial_start");
-    if (!start) {
-      localStorage.removeItem("briefcast_trial");
-      return false;
-    }
-    if (Date.now() - new Date(start).getTime() > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem("briefcast_trial");
-      localStorage.removeItem("briefcast_trial_start");
-      return false;
-    }
-    return true;
-  });
   const [audioProgress, setAudioProgress] = useState(0);
   const audioProgressTargetRef = useRef(0);
   const bookmarksRef = useRef(bookmarks);
   bookmarksRef.current = bookmarks;
-
-  useEffect(() => {
-    if (!premiumOpen) {
-      setIsPremium(localStorage.getItem("briefcast_trial") === "active");
-    }
-  }, [premiumOpen]);
 
   useEffect(() => {
     const playlist = bookmarks.map((b) => ({
@@ -199,31 +174,19 @@ const Bookmarks = () => {
                       icon={<Headphones className="w-5 h-5" />}
                       index={i}
                       audioUrl={getCachedUrl(`bookmark-${b.id}`) || b.audio_url || ""}
-                      isPremium={isPremium}
                       isCurrentlyPlaying={isPlaying && currentTrack?.id === `bookmark-${b.id}`}
                       isGenerating={generatingAudio === `bookmark-${b.id}`}
                       generatingProgress={generatingAudio === `bookmark-${b.id}` ? audioProgress : undefined}
                       onPlay={handlePlay}
                       onPause={pause}
-                      onPremiumClick={() => setPremiumOpen(true)}
-                      onVideoClick={(br) => setVideoBriefing(br ? { title: br.title, summary: br.summary ?? "" } : null)}
                     />
                   ))}
                 </div>
-                <PremiumBanner showPopup={premiumOpen} onPopupChange={setPremiumOpen} onTrialActivated={() => setIsPremium(true)} />
               </>
             )}
           </div>
         </div>
       </main>
-
-      <VideoPlayerPopup
-        open={!!videoBriefing}
-        onClose={() => setVideoBriefing(null)}
-        title={videoBriefing?.title ?? ""}
-        summary={videoBriefing?.summary ?? ""}
-        isPremium={isPremium}
-      />
     </div>
   );
 };

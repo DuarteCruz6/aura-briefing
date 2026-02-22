@@ -76,13 +76,6 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
 
 
-class VideoGenerateRequest(BaseModel):
-    """Generate a video briefing: TTS from summary + simple visual (gradient + title). Premium only."""
-    title: str
-    summary: str
-    topics: list[str] | None = None
-
-
 class SourceCreateRequest(BaseModel):
     type: str  # "youtube", "x", "linkedin", "news", "podcast"
     url: str
@@ -1767,109 +1760,6 @@ async def generate_podcast_from_urls(
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
-VIDEO_OUTPUT_DIR = Path("/tmp/video_briefings")
-
-# Header expected for premium-only video generation
-PREMIUM_HEADER = "x-premium"
-
-
-@app.post("/video/generate")
-async def generate_video(
-    body: VideoGenerateRequest,
-    request: Request,
-    user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
-):
-    """
-    Generate a video briefing: TTS from summary + slideshow synced to transcript.
-    Uses transcript from DB (user's personal cached briefing) when available for slide content.
-    Premium only (requires header X-Premium: true). Returns MP4.
-    """
-    if request.headers.get(PREMIUM_HEADER, "").strip().lower() != "true":
-        raise HTTPException(
-            status_code=403,
-            detail="Premium subscription required to generate video briefings",
-        )
-    if not os.getenv("GEMINI_API_KEY"):
-        raise HTTPException(
-            status_code=503,
-            detail="GEMINI_API_KEY not set; video generation unavailable",
-        )
-
-    title = (body.title or "").strip()
-    summary = (body.summary or "").strip()
-    if not title:
-        raise HTTPException(status_code=400, detail="title is required")
-    if not summary:
-        raise HTTPException(status_code=400, detail="summary is required")
-
-    # Prefer transcript from DB for slideshow content (same script as cached audio)
-    transcript_for_slides: str | None = None
-    cached = (
-        db.query(CachedBriefingAudio)
-        .filter(
-            CachedBriefingAudio.user_id == user_id,
-            CachedBriefingAudio.cache_key == "personal",
-        )
-        .first()
-    )
-    cached_audio_path: str | None = None
-    if cached and (cached.transcript or "").strip():
-        transcript_for_slides = cached.transcript.strip()
-        if cached.storage_path and os.path.isfile(cached.storage_path):
-            cached_audio_path = cached.storage_path
-
-    VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = VIDEO_OUTPUT_DIR / f"{uuid.uuid4().hex}.mp4"
-    progress_token = (request.headers.get(PROGRESS_HEADER) or "").strip() or None
-    if progress_token:
-        with _progress_lock:
-            _progress_store[progress_token] = {"progress": 0, "done": False, "error": None}
-
-    def video_progress_callback(pct: int) -> None:
-        if progress_token:
-            with _progress_lock:
-                if progress_token in _progress_store:
-                    _progress_store[progress_token]["progress"] = pct
-
-    try:
-        from app.models.video_generation import build_briefing_video
-
-        path_str = await asyncio.to_thread(
-            build_briefing_video,
-            title,
-            summary,
-            output_path,
-            transcript_for_slides=transcript_for_slides,
-            cached_audio_path=cached_audio_path,
-            progress_callback=video_progress_callback,
-        )
-    except ValueError as e:
-        if progress_token:
-            with _progress_lock:
-                if progress_token in _progress_store:
-                    _progress_store[progress_token]["done"] = True
-                    _progress_store[progress_token]["error"] = str(e)
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:  # noqa: BLE001
-        if progress_token:
-            with _progress_lock:
-                if progress_token in _progress_store:
-                    _progress_store[progress_token]["done"] = True
-                    _progress_store[progress_token]["error"] = str(e)
-        raise HTTPException(status_code=502, detail=str(e))
-
-    if progress_token:
-        with _progress_lock:
-            if progress_token in _progress_store:
-                _progress_store[progress_token]["done"] = True
-                _progress_store[progress_token]["progress"] = 100
-
-    return FileResponse(
-        path_str,
-        media_type="video/mp4",
-        filename="briefing.mp4",
-    )
 
 
 @app.post("/podcast/generate")

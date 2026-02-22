@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
-import { ArrowLeft, Check, Loader2, Wifi, WifiOff, Crown, XCircle } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Wifi, WifiOff } from "lucide-react";
 import { toast } from "../hooks/use-toast";
 
 const briefingFrequencies = [
