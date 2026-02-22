@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
@@ -117,9 +117,13 @@ const Index = () => {
   );
 
   // Clear generating state when the briefing is no longer in the list (e.g. user removed interests)
+  const prevIdsKeyRef = useRef<string>("");
+  const idsKey = filteredBriefings.map((b) => b.id).sort().join(",");
   useEffect(() => {
+    if (idsKey === prevIdsKeyRef.current) return;
+    prevIdsKeyRef.current = idsKey;
     clearGeneratingIfNotInList(filteredBriefings.map((b) => b.id));
-  }, [filteredBriefings, clearGeneratingIfNotInList]);
+  }, [idsKey, filteredBriefings, clearGeneratingIfNotInList]);
 
   const currentIndex = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
 

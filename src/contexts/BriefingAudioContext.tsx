@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useRef,
+  useMemo,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
@@ -124,14 +125,12 @@ export function BriefingAudioProvider({ children }: { children: ReactNode }) {
           setCurrentTrack({ id, src: blobUrl, title });
           setIsPlaying(true);
           toast.success("Podcast ready!", { id: `gen-${id}` });
-        } catch {
-          const fallback = "/audio/podcast.wav";
-          audioCacheRef.current[id] = fallback;
-          setCurrentTrack({ id, src: fallback, title });
-          setIsPlaying(true);
-          toast.info("Using sample audio (backend unavailable)", {
-            id: `gen-${id}`,
-          });
+        } catch (err: unknown) {
+          const message =
+            err instanceof Error ? err.message : "Backend unavailable";
+          toast.error(message, { id: `gen-${id}` });
+          generatingIdRef.current = null;
+          setGeneratingId((prev) => (prev === id ? null : prev));
         } finally {
           clearTimeout(timeoutId);
           if (generatingIdRef.current === id) generatingIdRef.current = null;
@@ -146,20 +145,30 @@ export function BriefingAudioProvider({ children }: { children: ReactNode }) {
 
   const pause = useCallback(() => setIsPlaying(false), []);
 
+  const value = useMemo(
+    () => ({
+      generatingId,
+      currentTrack,
+      isPlaying,
+      audioCacheRef,
+      startPlay,
+      pause,
+      setCurrentTrack,
+      setIsPlaying,
+      clearGeneratingIfNotInList,
+    }),
+    [
+      generatingId,
+      currentTrack,
+      isPlaying,
+      startPlay,
+      pause,
+      clearGeneratingIfNotInList,
+    ]
+  );
+
   return (
-    <BriefingAudioContext.Provider
-      value={{
-        generatingId,
-        currentTrack,
-        isPlaying,
-        audioCacheRef,
-        startPlay,
-        pause,
-        setCurrentTrack,
-        setIsPlaying,
-        clearGeneratingIfNotInList,
-      }}
-    >
+    <BriefingAudioContext.Provider value={value}>
       {children}
     </BriefingAudioContext.Provider>
   );
