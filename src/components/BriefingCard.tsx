@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useBookmarks } from "../hooks/useBookmarks";
 
 interface BriefingCardProps {
+  id: string;
   title: string;
   description: string;
   duration: string;
@@ -16,7 +17,7 @@ interface BriefingCardProps {
   isPremium: boolean;
   isCurrentlyPlaying?: boolean;
   isGenerating?: boolean;
-  onPlay?: (audioUrl: string, title: string) => void;
+  onPlay?: (id: string, audioUrl: string, title: string) => void;
   onPause?: () => void;
   onPremiumClick?: () => void;
   onVideoClick?: (briefing: { title: string; summary?: string }) => void;
@@ -28,7 +29,7 @@ function getConfidenceColor(c: number) {
   return { ring: "border-red-500/40", glow: "shadow-[0_0_12px_-2px_hsl(0_80%_55%/0.3)]", dot: "bg-red-400" };
 }
 
-export function BriefingCard({ title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, isGenerating, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
+export function BriefingCard({ id, title, description, duration, topics, confidence, summary, icon, index, audioUrl, isPremium, isCurrentlyPlaying, isGenerating, onPlay, onPause, onPremiumClick, onVideoClick }: BriefingCardProps) {
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const bookmarked = isBookmarked(title);
   const [expanded, setExpanded] = useState(false);
@@ -128,7 +129,7 @@ export function BriefingCard({ title, description, duration, topics, confidence,
                 if (isCurrentlyPlaying) {
                   onPause?.();
                 } else {
-                  onPlay?.(audioUrl, title);
+                  onPlay?.(id, audioUrl, title);
                 }
               }}
               disabled={isGenerating}
