@@ -27,33 +27,6 @@ const Settings = () => {
   const [frequency, setFrequency] = useState("daily");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
 
-  const [isPremium, setIsPremium] = useState(() => {
-    const trial = localStorage.getItem("briefcast_trial");
-    if (trial !== "active") return false;
-    const start = localStorage.getItem("briefcast_trial_start");
-    if (!start) { localStorage.removeItem("briefcast_trial"); return false; }
-    if (Date.now() - new Date(start).getTime() > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem("briefcast_trial");
-      localStorage.removeItem("briefcast_trial_start");
-      return false;
-    }
-    return true;
-  });
-
-  const trialDaysLeft = (() => {
-    const start = localStorage.getItem("briefcast_trial_start");
-    if (!start) return 0;
-    const elapsed = Date.now() - new Date(start).getTime();
-    return Math.max(0, Math.ceil((7 * 24 * 60 * 60 * 1000 - elapsed) / (24 * 60 * 60 * 1000)));
-  })();
-
-  const handleCancelSubscription = () => {
-    localStorage.removeItem("briefcast_trial");
-    localStorage.removeItem("briefcast_trial_start");
-    setIsPremium(false);
-    toast({ title: "Subscription cancelled", description: "You're back on the free plan." });
-  };
-
   useEffect(() => {
     api
       .getHealth()
@@ -138,34 +111,6 @@ const Settings = () => {
             >
               Log out
             </button>
-          </Section>
-
-          {/* Subscription */}
-          <Section title="Subscription">
-            <div className="glass-panel rounded-xl p-5 border border-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isPremium ? "bg-primary/15" : "bg-secondary"}`}>
-                    <Crown className={`w-5 h-5 ${isPremium ? "text-primary" : "text-muted-foreground"}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{isPremium ? "Premium (Trial)" : "Free Plan"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {isPremium ? `${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} remaining` : "Upgrade for AI video briefings"}
-                    </p>
-                  </div>
-                </div>
-                {isPremium && (
-                  <button
-                    onClick={handleCancelSubscription}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </div>
           </Section>
 
           {/* Briefing Length, Frequency, Voice Style — only after settings loaded */}
