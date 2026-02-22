@@ -8,9 +8,9 @@ import { useFavourites } from "../hooks/useFavourites";
 import { usePreferencesTopics } from "../hooks/usePreferencesTopics";
 import { useSources } from "../hooks/useSources";
 import { BriefingCard } from "../components/BriefingCard";
-import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { useChat } from "../contexts/ChatContext";
+import { useAudio } from "../contexts/AudioContext";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
 import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
@@ -30,8 +30,17 @@ const Index = () => {
   const hasFavourites = favouriteLabels.length > 0;
   const { chatOpen, setChatOpen } = useChat();
   const [premiumOpen, setPremiumOpen] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState<{ id: string; src: string; title: string } | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const {
+    currentTrack,
+    isPlaying,
+    generatingAudio,
+    play,
+    pause,
+    setGenerating,
+    getCachedUrl,
+    setCachedUrl,
+    setPlaylist,
+  } = useAudio();
   const [videoBriefing, setVideoBriefing] = useState<{ title: string; summary: string } | null>(null);
   const [isPremium, setIsPremium] = useState(() => {
     const trial = localStorage.getItem("briefcast_trial");
@@ -91,54 +100,47 @@ const Index = () => {
 
   // Single daily briefing only (regenerates when user adds/removes sources or topics)
   const filteredBriefings = favouriteBriefings;
-
-  // Cache generated audio blob URLs so we don't regenerate
-  const audioCache = useRef<Record<string, string>>({});
-  const [generatingAudio, setGeneratingAudio] = useState<string | null>(null);
   const briefingsRef = useRef(filteredBriefings);
-  const generatingIdRef = useRef<string | null>(null);
   briefingsRef.current = filteredBriefings;
 
+  useEffect(() => {
+    setPlaylist(
+      filteredBriefings.map((b) => ({
+        id: b.id,
+        title: b.title,
+        audioUrl: getCachedUrl(b.id) || b.audioUrl,
+      }))
+    );
+  }, [hasFavourites, frequency, getCachedUrl, setPlaylist]);
+
   const handlePlay = useCallback(async (id: string, audioUrl: string, title: string) => {
-    // If there's already a cached or provided audio URL, play it directly
-    if (audioUrl) {
-      setCurrentTrack({ id, src: audioUrl, title });
-      setIsPlaying(true);
+    const playlist = filteredBriefings.map((b) => ({
+      id: b.id,
+      title: b.title,
+      audioUrl: getCachedUrl(b.id) || b.audioUrl,
+    }));
+    if (audioUrl || getCachedUrl(id)) {
+      play(id, audioUrl || getCachedUrl(id)!, title, playlist);
       return;
     }
-
-    // Avoid starting a second generation (e.g. double-click or re-render)
-    if (generatingIdRef.current) return;
-    generatingIdRef.current = id;
-    setGeneratingAudio(id);
+    if (generatingAudio) return;
+    setGenerating(id);
 
     const briefing = briefingsRef.current.find((b) => b.id === id);
     if (!briefing) {
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-      return;
-    }
-
-    // Check cache first
-    if (audioCache.current[id]) {
-      setCurrentTrack({ id, src: audioCache.current[id], title });
-      setIsPlaying(true);
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
+      setGenerating(null);
       return;
     }
     toast.info("Generating your podcast audio…", { id: `gen-${id}` });
 
     const timeoutMs = 90_000;
     const timeoutId = setTimeout(() => {
-      if (generatingIdRef.current === id) generatingIdRef.current = null;
-      setGeneratingAudio((prev) => (prev === id ? null : prev));
+      setGenerating(null);
       toast.error("Generation took too long. Try again.", { id: `gen-${id}` });
     }, timeoutMs);
 
     try {
       let blob: Blob;
-      // "Your Daily Briefing" card: generate from user's sources/topics (LLM summary then TTS), not the prompt
       if (id === "combined-briefing") {
         blob = await api.generatePersonalBriefingAudio();
       } else if (briefing.generateUrls?.length) {
@@ -147,71 +149,30 @@ const Index = () => {
         blob = await api.generatePodcast(briefing.generateText);
       } else {
         toast.error("No content available to generate audio", { id: `gen-${id}` });
-        generatingIdRef.current = null;
-        setGeneratingAudio(null);
+        setGenerating(null);
         clearTimeout(timeoutId);
         return;
       }
       const blobUrl = URL.createObjectURL(blob);
-      audioCache.current[id] = blobUrl;
-      setCurrentTrack({ id, src: blobUrl, title });
-      setIsPlaying(true);
+      setCachedUrl(id, blobUrl);
+      play(id, blobUrl, title, playlist);
       toast.success("Podcast ready!", { id: `gen-${id}` });
     } catch (err: any) {
-      // Fallback to static sample audio when backend is unreachable
       const fallback = "/audio/podcast.wav";
-      audioCache.current[id] = fallback;
-      setCurrentTrack({ id, src: fallback, title });
-      setIsPlaying(true);
+      setCachedUrl(id, fallback);
+      play(id, fallback, title, playlist);
       toast.info("Using sample audio (backend unavailable)", { id: `gen-${id}` });
     } finally {
       clearTimeout(timeoutId);
-      if (generatingIdRef.current === id) generatingIdRef.current = null;
-      setGeneratingAudio((prev) => (prev === id ? null : prev));
+      setGenerating(null);
     }
-  }, []);
+  }, [filteredBriefings, generatingAudio, getCachedUrl, play, setCachedUrl, setGenerating]);
 
-  // Clear generating state when the briefing is no longer in the list (e.g. user removed interests)
   useEffect(() => {
     if (!generatingAudio) return;
     const inList = filteredBriefings.some((b) => b.id === generatingAudio);
-    if (!inList) {
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-    }
-  }, [filteredBriefings, generatingAudio]);
-
-  // Clear generating state on unmount
-  useEffect(() => {
-    return () => {
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-    };
-  }, []);
-
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
-
-  const currentIndex = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
-
-  const handleSkipNext = useCallback(() => {
-    const idx = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
-    if (idx >= 0 && idx < filteredBriefings.length - 1) {
-      const next = filteredBriefings[idx + 1];
-      setCurrentTrack({ id: next.id, src: audioCache.current[next.id] || next.audioUrl, title: next.title });
-      setIsPlaying(true);
-    }
-  }, [currentTrack, filteredBriefings]);
-
-  const handleSkipPrevious = useCallback(() => {
-    const idx = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
-    if (idx > 0) {
-      const prev = filteredBriefings[idx - 1];
-      setCurrentTrack({ id: prev.id, src: audioCache.current[prev.id] || prev.audioUrl, title: prev.title });
-      setIsPlaying(true);
-    }
-  }, [currentTrack, filteredBriefings]);
+    if (!inList) setGenerating(null);
+  }, [filteredBriefings, generatingAudio, setGenerating]);
 
   if (!user) return null;
 
@@ -276,13 +237,13 @@ const Index = () => {
                         confidence={b.confidence}
                         summary={b.summary}
                         icon={b.icon}
-                        audioUrl={audioCache.current[b.id] || b.audioUrl}
+                        audioUrl={getCachedUrl(b.id) || b.audioUrl}
                         index={i}
                         isPremium={isPremium}
                         isCurrentlyPlaying={isPlaying && currentTrack?.id === b.id}
                         isGenerating={generatingAudio === b.id}
                         onPlay={handlePlay}
-                        onPause={handlePause}
+                        onPause={pause}
                         onPremiumClick={() => setPremiumOpen(true)}
                         onVideoClick={(br) => setVideoBriefing(br ? { title: br.title, summary: br.summary ?? "" } : null)}
                       />
@@ -312,17 +273,6 @@ const Index = () => {
             )}
           </div>
         </div>
-        <AudioPlayer
-          src={currentTrack?.src}
-          trackTitle={currentTrack?.title}
-          briefingId={currentTrack?.id}
-          externalPlaying={isPlaying}
-          onPlayingChange={setIsPlaying}
-          onSkipNext={handleSkipNext}
-          onSkipPrevious={handleSkipPrevious}
-          hasNext={currentIndex >= 0 && currentIndex < filteredBriefings.length - 1}
-          hasPrevious={currentIndex > 0}
-        />
       </main>
 
       <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
