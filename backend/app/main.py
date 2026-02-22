@@ -1511,8 +1511,8 @@ def get_x_feed_by_topics(
     db: Session = Depends(get_db),
 ):
     """
-    Get one recent X (Twitter) post per topic from the user's topic preferences.
-    Uses Nitter search RSS (no API key). Set NITTER_BASE_URL if the default instance is down.
+    Get one recent and popular X (Twitter) post per topic from the user's topic preferences.
+    Tries Nitter search RSS first; if unavailable (often the case), uses Apify when APIFY_API_TOKEN is set.
     """
     from app.services.x_by_topics import fetch_posts_by_topics
 
@@ -1528,8 +1528,16 @@ def get_x_feed_by_topics(
             "topics": [],
             "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
         }
-    results = fetch_posts_by_topics(topics)
-    return {"topics": results}
+    results, error = fetch_posts_by_topics(topics)
+    out = {"topics": results}
+    if error:
+        out["error"] = error
+    if all(r.get("post") is None for r in results):
+        out["message"] = (
+            "No X posts returned. Nitter search is often unavailable. "
+            "Set APIFY_API_TOKEN in .env for reliable X search (Apify pay-per-result)."
+        )
+    return out
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")
