@@ -271,7 +271,7 @@ def build_briefing_video(
         if seg_sum > 0:
             segment_durations = [(d / seg_sum) * total_duration for d in segment_durations]
 
-        # 3) One image per segment: generate image; on failure use gradient placeholder (no text)
+        # 3) One image per segment: generate image; on failure use text slideshow (gradient + segment text)
         from app.models.video_generation.image_generator import generate_slide_image
 
         n_seg = len(segments)
@@ -285,7 +285,11 @@ def build_briefing_video(
                 title=title or None,
                 is_first=is_first,
             ):
-                _make_gradient_frame(path, "")  # placeholder: no text, image-only
+                # Text slideshow fallback: gradient + title (first slide) + segment text
+                if is_first and (title or "").strip():
+                    _make_slide_frame(path, (title or "").strip(), seg, is_first=True)
+                else:
+                    _make_slide_frame(path, "", seg, is_first=is_first)
             if n_seg:
                 report(25 + 50 * (i + 1) // n_seg)
 
