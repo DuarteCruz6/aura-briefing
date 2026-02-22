@@ -13,8 +13,6 @@ from urllib.parse import quote_plus
 
 import httpx
 
-from app.config import settings
-
 logger = logging.getLogger(__name__)
 
 # User-Agent for Google News (polite scraping)
@@ -144,65 +142,41 @@ def _build_google_news_rss_url(topic: str, hl: str = "en-US", gl: str = "US", ce
     return f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
-def _fetch_articles_newsapi(
-    topic: str,
-    max_articles: int = 10,
-    language: str = "en",
-) -> list[dict]:
+def _fetch_articles_bing_rss(topic: str, max_articles: int = 10) -> list[dict]:
     """
-    Fetch articles for a topic via NewsAPI (direct publisher URLs, no news.google.com).
-    Returns list of {url, title, published_at, source}. Returns [] on error or missing key.
+    Fetch articles via Bing News RSS (no API key). Item links may be direct or go through Bing.
+    Returns list of {url, title, published_at, source}. Returns [] on error.
     """
-    key = (settings.newsapi_api_key or "").strip()
-    if not key:
-        return []
     topic = (topic or "").strip()
     if not topic:
         return []
     try:
-        r = httpx.get(
-            "https://newsapi.org/v2/everything",
-            params={
-                "q": topic,
-                "apiKey": key,
-                "language": language[:2] if language else "en",
-                "pageSize": min(max_articles, 100),
-                "sortBy": "publishedAt",
-            },
-            timeout=12.0,
-        )
-        if r.status_code != 200:
-            logger.warning(
-                "NewsAPI non-200: status=%s body=%s (free tier is development-only; production needs paid plan)",
-                r.status_code,
-                r.text[:500],
-            )
-            return []
-        data = r.json()
-        if data.get("status") != "ok":
-            msg = data.get("message", data.get("code", r.text[:200]))
-            logger.warning(
-                "NewsAPI status not ok: %s (free tier is development-only; production needs paid plan)",
-                msg,
-            )
-            return []
-        results = []
-        for art in data.get("articles") or []:
-            url = (art.get("url") or "").strip()
-            if not url or "news.google.com" in url:
-                continue
-            title = art.get("title") or ""
-            published = art.get("publishedAt")
-            source = None
-            if isinstance(art.get("source"), dict):
-                source = art["source"].get("name")
-            results.append({"url": url, "title": title, "published_at": published, "source": source})
-            if len(results) >= max_articles:
-                break
-        return results
-    except Exception as e:
-        logger.warning("NewsAPI request failed: %s", e, exc_info=True)
+        import feedparser
+    except ImportError:
         return []
+    url = "https://www.bing.com/news/search?q=" + quote_plus(topic) + "&format=RSS"
+    try:
+        parsed = feedparser.parse(url, request_headers={"User-Agent": USER_AGENT})
+    except Exception:
+        return []
+    entries = getattr(parsed, "entries", [])[:max_articles]
+    results = []
+    for entry in entries:
+        link = (entry.get("link") or entry.get("href") or "").strip()
+        if not link:
+            continue
+        if "news.google.com" in link:
+            continue
+        title = entry.get("title") or ""
+        published = None
+        for key in ("published", "updated", "created"):
+            if key in entry and entry[key]:
+                p = entry[key]
+                published = p.isoformat() if hasattr(p, "isoformat") else str(p)
+                break
+        source = (entry.get("source") or {}).get("title") if isinstance(entry.get("source"), dict) else None
+        results.append({"url": link, "title": title, "published_at": published, "source": source})
+    return _drop_news_google(results)
 
 
 def fetch_articles_for_topic(
@@ -212,19 +186,17 @@ def fetch_articles_for_topic(
     gl: str = "US",
 ) -> list[dict]:
     """
-    Fetch articles for a single topic. Uses NewsAPI (direct URLs) when NEWSAPI_API_KEY is set,
-    otherwise Google News RSS (may return news.google.com links that are hard to resolve).
+    Fetch articles for a single topic. Tries Bing News RSS first (no key), then Google News RSS.
     Returns list of {url, title, published_at, source}.
     """
     topic = (topic or "").strip()
     if not topic:
         return []
-    # When NewsAPI key is set, use only NewsAPI (direct URLs). Never fall back to Google so we never serve news.google.com.
-    if (settings.newsapi_api_key or "").strip():
-        lang = (hl or "en-US").split("-")[0] if hl else "en"
-        articles = _fetch_articles_newsapi(topic, max_articles=max_articles, language=lang)
-        return _drop_news_google(articles)
-    # Fallback: Google News RSS only when no NewsAPI key (links may be news.google.com redirects)
+    # 1) Bing News RSS – no API key
+    articles = _fetch_articles_bing_rss(topic, max_articles=max_articles)
+    if articles:
+        return articles
+    # 2) Google News RSS – links may be news.google.com redirects
     try:
         import feedparser
     except ImportError:

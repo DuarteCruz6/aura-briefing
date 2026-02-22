@@ -31,9 +31,6 @@ class Settings(BaseSettings):
     # Apify (e.g. for LinkedIn profile posts). Get token at https://console.apify.com/account/integrations
     apify_api_token: str = ""
 
-    # NewsAPI (topic news with direct article URLs; no news.google.com redirects). Get key at https://newsapi.org
-    newsapi_api_key: str = ""
-
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
