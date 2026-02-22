@@ -1371,12 +1371,11 @@ def get_feed_by_topics(
 def get_youtube_feed_by_topics(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
-    max_per_topic: int = 5,
+    min_views: int = 1000,
 ):
     """
-    Get recent YouTube videos based on the user's topic preferences (e.g. cars, ireland).
-    Uses YouTube Data API v3 search (order=date). Requires YOUTUBE_API_KEY.
-    Returns one list per topic with recent matching videos.
+    Get one recent YouTube video per topic (user's topic preferences). Prefers videos with at least min_views.
+    Uses YouTube Data API v3. Requires GOOGLE_API_KEY.
     """
     from app.services.youtube_by_topics import fetch_videos_by_topics
 
@@ -1392,8 +1391,8 @@ def get_youtube_feed_by_topics(
             "topics": [],
             "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
         }
-    max_per_topic = min(max(1, max_per_topic), 25)
-    results, error = fetch_videos_by_topics(topics, max_per_topic=max_per_topic)
+    min_views = max(0, min_views)
+    results, error = fetch_videos_by_topics(topics, min_views=min_views)
     out = {"topics": results}
     if error:
         out["error"] = error

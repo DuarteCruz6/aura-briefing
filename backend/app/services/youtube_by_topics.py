@@ -1,7 +1,7 @@
 """
 Fetch recent YouTube videos from YouTube Data API v3 search based on topic keywords.
-Uses the same topic preferences as the article feed (e.g. cars, ireland).
-Requires YOUTUBE_API_KEY.
+One video per topic, with a minimum view count. Uses the same topic preferences as the article feed.
+Requires GOOGLE_API_KEY (YouTube Data API v3 uses the same key).
 """
 from __future__ import annotations
 
@@ -13,6 +13,11 @@ try:
 except Exception:
     settings = None
 
+# Minimum view count to consider a video "reasonable"; fallback to most recent if none pass
+MIN_VIEWS_DEFAULT = 1000
+# How many recent candidates to fetch before filtering by views
+SEARCH_CANDIDATES = 15
+
 
 def _get_youtube_api_key() -> str:
     key = os.getenv("YOUTUBE_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -23,34 +28,42 @@ def _get_youtube_api_key() -> str:
     return ""
 
 
+def _parse_int(s: str | None, default: int = 0) -> int:
+    if s is None:
+        return default
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return default
+
+
 def fetch_videos_for_topic(
     topic: str,
-    max_videos: int = 5,
+    min_views: int = MIN_VIEWS_DEFAULT,
 ) -> tuple[list[dict], str | None]:
     """
-    Fetch recent YouTube videos for a single topic via search API.
-    Returns (list of {url, title, published_at, channel_title}, error_message).
-    If API key is missing or request fails, returns ([], error_message).
+    Fetch one recent YouTube video for a topic with at least min_views.
+    Returns (list of 0 or 1 item {url, title, published_at, channel_title, view_count}, error_message).
+    If no video has enough views, returns the single most recent video.
     """
     topic = (topic or "").strip()
     if not topic:
         return ([], None)
     api_key = _get_youtube_api_key()
     if not api_key:
-        return ([], "YOUTUBE_API_KEY not set")
-    max_videos = min(max(1, max_videos), 25)
-    url = "https://www.googleapis.com/youtube/v3/search"
+        return ([], "GOOGLE_API_KEY not set")
+    url_search = "https://www.googleapis.com/youtube/v3/search"
     params = {
         "part": "snippet",
         "type": "video",
         "q": topic,
         "order": "date",
-        "maxResults": max_videos,
+        "maxResults": min(SEARCH_CANDIDATES, 50),
         "key": api_key,
     }
     try:
         with httpx.Client(timeout=15.0) as client:
-            r = client.get(url, params=params)
+            r = client.get(url_search, params=params)
             data = r.json()
     except httpx.HTTPStatusError as e:
         err_detail = ""
@@ -71,7 +84,6 @@ def fetch_videos_for_topic(
     except Exception as e:
         return ([], f"YouTube API request failed: {e}")
 
-    # Error in successful HTTP response body (e.g. quota, disabled API)
     err_body = data.get("error") if isinstance(data, dict) else None
     if err_body:
         msg = err_body.get("message", "Unknown API error")
@@ -85,49 +97,93 @@ def fetch_videos_for_topic(
         return ([], f"YouTube API error: {r.status_code}")
 
     items = data.get("items") or []
-    results = []
+    video_ids = []
+    id_to_snippet: dict[str, dict] = {}
     for item in items:
-        # Search list returns id: { kind: "youtube#video", videoId: "..." }
         vid = item.get("id") if isinstance(item.get("id"), dict) else {}
         video_id = (vid.get("videoId") or "").strip() if vid else None
         if not video_id:
             continue
-        snippet = item.get("snippet") or {}
-        results.append({
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "title": snippet.get("title") or "",
-            "published_at": snippet.get("publishedAt") or "",
-            "channel_title": snippet.get("channelTitle") or "",
-        })
-    return (results, None)
+        video_ids.append(video_id)
+        id_to_snippet[video_id] = item.get("snippet") or {}
+    if not video_ids:
+        return ([], None)
+
+    # Get view counts (videos.list allows up to 50 ids)
+    url_videos = "https://www.googleapis.com/youtube/v3/videos"
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r2 = client.get(
+                url_videos,
+                params={"part": "statistics", "id": ",".join(video_ids), "key": api_key},
+            )
+            data2 = r2.json()
+    except Exception:
+        # Fallback: return most recent without view count
+        vid_id = video_ids[0]
+        sn = id_to_snippet.get(vid_id) or {}
+        return ([{
+            "url": f"https://www.youtube.com/watch?v={vid_id}",
+            "title": sn.get("title") or "",
+            "published_at": sn.get("publishedAt") or "",
+            "channel_title": sn.get("channelTitle") or "",
+            "view_count": None,
+        }], None)
+
+    stats_by_id: dict[str, int] = {}
+    for item in (data2.get("items") or []):
+        vid = item.get("id")
+        if not vid:
+            continue
+        stat = item.get("statistics") or {}
+        stats_by_id[vid] = _parse_int(stat.get("viewCount"))
+
+    # Pick first (most recent) with >= min_views; else most recent
+    chosen = None
+    for vid_id in video_ids:
+        views = stats_by_id.get(vid_id, 0)
+        if views >= min_views:
+            sn = id_to_snippet.get(vid_id) or {}
+            chosen = {
+                "url": f"https://www.youtube.com/watch?v={vid_id}",
+                "title": sn.get("title") or "",
+                "published_at": sn.get("publishedAt") or "",
+                "channel_title": sn.get("channelTitle") or "",
+                "view_count": views,
+            }
+            break
+    if chosen is None:
+        vid_id = video_ids[0]
+        sn = id_to_snippet.get(vid_id) or {}
+        chosen = {
+            "url": f"https://www.youtube.com/watch?v={vid_id}",
+            "title": sn.get("title") or "",
+            "published_at": sn.get("publishedAt") or "",
+            "channel_title": sn.get("channelTitle") or "",
+            "view_count": stats_by_id.get(vid_id),
+        }
+    return ([chosen], None)
 
 
 def fetch_videos_by_topics(
     topics: list[str],
-    max_per_topic: int = 5,
+    min_views: int = MIN_VIEWS_DEFAULT,
 ) -> tuple[list[dict], str | None]:
     """
-    Fetch recent videos for each topic. Returns (list of {topic, videos: [...]}, error_message).
-    Deduplicates by URL across topics. Requires YOUTUBE_API_KEY.
-    If any topic fails (e.g. API key missing, 403), returns first error so caller can surface it.
+    Fetch one video per topic (recent, with at least min_views when possible).
+    Returns (list of {topic, videos: [single item]}, error_message).
+    Requires GOOGLE_API_KEY.
     """
     if not topics:
         return ([], None)
     result = []
-    seen_urls: set[str] = set()
     first_error: str | None = None
     for topic in topics:
         topic = (topic or "").strip()
         if not topic:
             continue
-        videos, err = fetch_videos_for_topic(topic, max_videos=max_per_topic)
+        videos, err = fetch_videos_for_topic(topic, min_views=min_views)
         if err and first_error is None:
             first_error = err
-        deduped = []
-        for v in videos:
-            u = (v.get("url") or "").strip()
-            if u and u not in seen_urls:
-                seen_urls.add(u)
-                deduped.append(v)
-        result.append({"topic": topic, "videos": deduped})
+        result.append({"topic": topic, "videos": videos})
     return (result, first_error)
