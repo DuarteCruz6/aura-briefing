@@ -30,6 +30,16 @@ export function useAuth() {
     if (stored) setUser(stored);
   }, []);
 
+  // When any API call returns 401, clear user so we redirect to sign-in
+  useEffect(() => {
+    const onAuthRequired = () => {
+      localStorage.removeItem("briefcast_auth");
+      setUser(null);
+    };
+    window.addEventListener("briefcast:auth-required", onAuthRequired);
+    return () => window.removeEventListener("briefcast:auth-required", onAuthRequired);
+  }, []);
+
   useEffect(() => {
     if (user) return;
     // Don't redirect if we have auth in storage (e.g. just logged in, state not yet synced)

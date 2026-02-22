@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
+import { useAuth } from "../hooks/useAuth";
 
 export interface PlaylistItem {
   id: string;
@@ -33,11 +34,17 @@ interface AudioContextValue {
 const AudioContext = createContext<AudioContextValue | null>(null);
 
 export function AudioProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [currentTrack, setCurrentTrack] = useState<CurrentTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [generatingAudio, setGenerating] = useState<string | null>(null);
   const [playlist, setPlaylistState] = useState<PlaylistItem[]>([]);
   const audioCacheRef = useRef<Record<string, string>>({});
+
+  // Clear cached briefing audio when user changes (logout or switch account) so the new user doesn't hear the previous user's briefing
+  useEffect(() => {
+    audioCacheRef.current = {};
+  }, [user?.email ?? null]);
 
   const getCachedUrl = useCallback((id: string) => audioCacheRef.current[id], []);
   const setCachedUrl = useCallback((id: string, url: string) => {
