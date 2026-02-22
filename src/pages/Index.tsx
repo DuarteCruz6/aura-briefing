@@ -127,6 +127,9 @@ const Index = () => {
   // Cache generated audio blob URLs so we don't regenerate
   const audioCache = useRef<Record<string, string>>({});
   const [generatingAudio, setGeneratingAudio] = useState<string | null>(null);
+  const briefingsRef = useRef(filteredBriefings);
+  const generatingIdRef = useRef<string | null>(null);
+  briefingsRef.current = filteredBriefings;
 
   const handlePlay = useCallback(async (id: string, audioUrl: string, title: string) => {
     // If there's already a cached or provided audio URL, play it directly
@@ -136,20 +139,34 @@ const Index = () => {
       return;
     }
 
-    // Find the briefing to generate audio for
-    const briefing = filteredBriefings.find(b => b.id === id);
-    if (!briefing) return;
+    // Avoid starting a second generation (e.g. double-click or re-render)
+    if (generatingIdRef.current) return;
+    generatingIdRef.current = id;
+    setGeneratingAudio(id);
+
+    const briefing = briefingsRef.current.find((b) => b.id === id);
+    if (!briefing) {
+      generatingIdRef.current = null;
+      setGeneratingAudio(null);
+      return;
+    }
 
     // Check cache first
     if (audioCache.current[id]) {
       setCurrentTrack({ id, src: audioCache.current[id], title });
       setIsPlaying(true);
+      generatingIdRef.current = null;
+      setGeneratingAudio(null);
       return;
     }
-
-    // Generate audio from backend
-    setGeneratingAudio(id);
     toast.info("Generating your podcast audio…", { id: `gen-${id}` });
+
+    const timeoutMs = 90_000;
+    const timeoutId = setTimeout(() => {
+      if (generatingIdRef.current === id) generatingIdRef.current = null;
+      setGeneratingAudio((prev) => (prev === id ? null : prev));
+      toast.error("Generation took too long. Try again.", { id: `gen-${id}` });
+    }, timeoutMs);
 
     try {
       let blob: Blob;
@@ -159,7 +176,9 @@ const Index = () => {
         blob = await api.generatePodcast(briefing.generateText);
       } else {
         toast.error("No content available to generate audio", { id: `gen-${id}` });
+        generatingIdRef.current = null;
         setGeneratingAudio(null);
+        clearTimeout(timeoutId);
         return;
       }
       const blobUrl = URL.createObjectURL(blob);
@@ -175,9 +194,29 @@ const Index = () => {
       setIsPlaying(true);
       toast.info("Using sample audio (backend unavailable)", { id: `gen-${id}` });
     } finally {
+      clearTimeout(timeoutId);
+      if (generatingIdRef.current === id) generatingIdRef.current = null;
+      setGeneratingAudio((prev) => (prev === id ? null : prev));
+    }
+  }, []);
+
+  // Clear generating state when the briefing is no longer in the list (e.g. user removed interests)
+  useEffect(() => {
+    if (!generatingAudio) return;
+    const inList = filteredBriefings.some((b) => b.id === generatingAudio);
+    if (!inList) {
+      generatingIdRef.current = null;
       setGeneratingAudio(null);
     }
-  }, [filteredBriefings]);
+  }, [filteredBriefings, generatingAudio]);
+
+  // Clear generating state on unmount
+  useEffect(() => {
+    return () => {
+      generatingIdRef.current = null;
+      setGeneratingAudio(null);
+    };
+  }, []);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
