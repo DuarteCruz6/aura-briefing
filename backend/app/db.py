@@ -7,9 +7,16 @@ from app.config import settings, get_database_path
 if settings.database_url.startswith("sqlite"):
     get_database_path()
 
+_connect_args: dict = {}
+if "sqlite" in settings.database_url:
+    _connect_args["check_same_thread"] = False
+elif "postgresql" in settings.database_url:
+    # Avoid hanging on startup if Postgres is unreachable (e.g. Railway DB not ready)
+    _connect_args["connect_timeout"] = 15
+
 engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
+    connect_args=_connect_args,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

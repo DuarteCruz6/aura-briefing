@@ -39,3 +39,27 @@ By default the app uses SQLite in `/app/data`, which is **ephemeral** on Railway
 3. **Redeploy** the backend (push a commit or trigger a deploy). On startup, the app will run migrations (create tables) against Postgres. The `/tables` debug endpoint works with both SQLite and PostgreSQL.
 
 No code changes are required: the app reads `DATABASE_URL` from the environment and uses it with SQLAlchemy. Local development can keep using SQLite (omit `DATABASE_URL` or set it to `sqlite:///./data/newsletter.db`).
+
+---
+
+## Railway stopped working – checklist
+
+1. **502 Bad Gateway / connection refused**
+   - In the service **Settings** → **Networking**, check **Target port**. Leave it **blank** so Railway uses the injected `PORT` (often 8080). If you set a custom port, it must match what the app logs on startup (e.g. `Starting on 0.0.0.0:8080`).
+   - Confirm the service is **Running** (not crashed). Check **Deployments** → latest deploy → **View logs** for errors.
+
+2. **Deploy fails or service keeps restarting**
+   - **Build logs**: Check that the Docker build completes (e.g. no `pip` or `apt-get` failures).
+   - **Runtime logs**: Look for Python tracebacks or "Address already in use". The app must bind to `0.0.0.0:$PORT`.
+   - **Database**: If you use **PostgreSQL** via `DATABASE_URL`, ensure the Postgres service is running and the variable is set (Reference → your Postgres service → `DATABASE_URL`). Wrong or unreachable `DATABASE_URL` can make startup hang or fail.
+
+3. **Health check failing (deploy never becomes "Active") / "Attempt #1 failed with service unavailable"**
+   - The app now responds to `/health` as soon as the server binds; DB init runs in the background. So health should pass within a few seconds.
+   - If you still see "service unavailable": in the service **Settings** → **Networking**, set **Target port** to **blank** (so Railway uses the same `PORT` it injects, e.g. 8080). If Target port is wrong, Railway probes the wrong port and health fails.
+   - Check **Deploy** → **View logs** for the runtime line `Starting on 0.0.0.0:XXXX` and ensure no Python traceback appears before it.
+
+4. **Required variables**
+   - At minimum: `GEMINI_API_KEY`, `ELEVENLABS_API_KEY`. Set `CORS_ORIGINS` to your frontend origin(s) or `*` to avoid OPTIONS 400.
+
+5. **Redeploy**
+   - After changing **Variables** or **Networking**, trigger a new deploy (e.g. **Deploy** → **Redeploy** or push a commit).

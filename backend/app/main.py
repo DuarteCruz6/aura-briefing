@@ -138,7 +138,21 @@ class BookmarkCreateRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    # Start server first so /health responds immediately (Railway healthcheck passes).
+    # Run init_db in background with retries so DB being slow/unavailable doesn't kill the deploy.
+    async def init_db_background():
+        for attempt in range(1, 4):
+            try:
+                init_db()
+                logger.info("init_db completed successfully")
+                return
+            except Exception as e:
+                if attempt == 3:
+                    logger.exception("init_db failed after 3 attempts; DB routes may 500 until DB is ready")
+                    return
+                logger.warning("init_db attempt %s failed: %s; retrying in 2s ...", attempt, e)
+                await asyncio.sleep(2)
+    asyncio.create_task(init_db_background())
     yield
 
 
