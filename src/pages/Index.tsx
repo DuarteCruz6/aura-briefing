@@ -10,6 +10,7 @@ import { useSources } from "../hooks/useSources";
 import { TodaysBriefing } from "../components/TodaysBriefing";
 import { BriefingCard } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
+import { ChatSidebar } from "../components/ChatSidebar";
 import { useChat } from "../contexts/ChatContext";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
@@ -28,7 +29,7 @@ const Index = () => {
     ...favourites.map((f) => f.label),
   ];
   const hasFavourites = favouriteLabels.length > 0;
-  const { setChatOpen } = useChat();
+  const { chatOpen, setChatOpen } = useChat();
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<{ id: string; src: string; title: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -315,6 +316,7 @@ const Index = () => {
         />
       </main>
 
+      <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
       <VideoPlayerPopup
         open={!!videoBriefing}
         onClose={() => setVideoBriefing(null)}
