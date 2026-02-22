@@ -1282,6 +1282,7 @@ async def generate_personal_briefing(
     if existing:
         existing.storage_path = path_str
         existing.duration_seconds = duration_seconds
+        existing.transcript = summary
     else:
         db.add(
             CachedBriefingAudio(
@@ -1289,6 +1290,7 @@ async def generate_personal_briefing(
                 cache_key=cache_key,
                 storage_path=path_str,
                 duration_seconds=duration_seconds,
+                transcript=summary,
             )
         )
     db.commit()
@@ -1301,6 +1303,29 @@ async def generate_personal_briefing(
             "X-Duration-Seconds": str(duration_seconds) if duration_seconds is not None else "",
         },
     )
+
+
+@app.get("/briefing/transcript")
+def get_personal_briefing_transcript(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Return the saved transcript for the user's current personal briefing, if any.
+    Returns 404 if no cached personal briefing or no transcript stored.
+    """
+    cached = (
+        db.query(CachedBriefingAudio)
+        .filter(
+            CachedBriefingAudio.user_id == user_id,
+            CachedBriefingAudio.cache_key == "personal",
+        )
+        .first()
+    )
+    if not cached or not (cached.transcript or "").strip():
+        raise HTTPException(status_code=404, detail="No transcript available for personal briefing")
+    return {"transcript": cached.transcript}
+
 
 @app.get("/feed/by-topics")
 def get_feed_by_topics(
@@ -1430,6 +1455,7 @@ async def generate_podcast_from_urls(
     if existing:
         existing.storage_path = path_str
         existing.duration_seconds = duration_seconds
+        existing.transcript = summary
     else:
         db.add(
             CachedBriefingAudio(
@@ -1437,6 +1463,7 @@ async def generate_podcast_from_urls(
                 cache_key=cache_key,
                 storage_path=path_str,
                 duration_seconds=duration_seconds,
+                transcript=summary,
             )
         )
     db.commit()
