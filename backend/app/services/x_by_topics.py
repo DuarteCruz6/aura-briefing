@@ -26,8 +26,16 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; rv:109.0) Gecko/20100101 Firefox/119.0"
 )
 
-# Apify actor: X (Twitter) Posts Search – search by keyword/hashtag
+# Apify actors
 APIFY_X_POSTS_SEARCH_ACTOR_ID = "scraper_one~x-posts-search"
+APIFY_X_PROFILE_POSTS_ACTOR_ID = "scraper_one~x-profile-posts-scraper"
+
+# Well-known X accounts: one recent post each in the feed (preferably from famous people)
+FAMOUS_X_HANDLES = [
+    "elonmusk", "naval", "pmarca", "sama", "karpathy", "ylecun", "BillGates",
+    "satya_nadella", "tim_cook", "paulg", "nntaleb", "tferriss", "BarackObama",
+    "nytimes", "TheEconomist", "BBC",
+]
 
 
 def _get_nitter_base() -> str:
@@ -161,3 +169,69 @@ def fetch_posts_by_topics(topics: list[str]) -> list[dict]:
         post, _ = fetch_post_for_topic(topic)
         result.append({"topic": topic, "post": post})
     return result
+
+
+def fetch_posts_from_profiles(
+    profile_urls: list[str],
+    api_token: str,
+    limit_per_profile: int = 1,
+) -> list[dict]:
+    """
+    Fetch latest post(s) from given X profile URLs via Apify (scraper_one/x-profile-posts-scraper).
+    Returns list of {handle, name, post: {url, title, published_at}}.
+    """
+    if not profile_urls or not api_token or httpx is None:
+        return []
+    urls = [u.strip() for u in profile_urls if (u and u.strip()) and "x.com" in u.strip().lower()]
+    if not urls:
+        return []
+    api_url = (
+        f"https://api.apify.com/v2/acts/{APIFY_X_PROFILE_POSTS_ACTOR_ID}/run-sync-get-dataset-items"
+        f"?token={api_token}&timeout=120&limit=100"
+    )
+    payload = {"profileUrls": urls, "resultsLimit": max(1, min(limit_per_profile, 5))}
+    try:
+        with httpx.Client(timeout=130.0) as client:
+            r = client.post(api_url, json=payload)
+            r.raise_for_status()
+            data = r.json()
+    except Exception:
+        return []
+    if not isinstance(data, list):
+        return []
+    seen_handles: set[str] = set()
+    result = []
+    for item in data:
+        author = item.get("author") or {}
+        handle = (author.get("screenName") or "").strip().lower()
+        if not handle or handle in seen_handles:
+            continue
+        seen_handles.add(handle)
+        url = item.get("postUrl") or item.get("url")
+        if not url:
+            continue
+        title = (item.get("postText") or item.get("text") or "")[:500].strip() or ""
+        published = None
+        ts = item.get("timestamp")
+        if isinstance(ts, (int, float)):
+            try:
+                published = datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc).isoformat()
+            except Exception:
+                published = str(ts)
+        elif item.get("created_at"):
+            published = item.get("created_at")
+        result.append({
+            "handle": handle,
+            "name": (author.get("name") or "").strip() or handle,
+            "post": {"url": url, "title": title, "published_at": published},
+        })
+    return result
+
+
+def fetch_posts_from_famous_accounts(api_token: str, max_accounts: int = 12) -> list[dict]:
+    """
+    Fetch one recent post each from a curated list of well-known X accounts (famous people / outlets).
+    Returns list of {handle, name, post: {url, title, published_at}}.
+    """
+    urls = [f"https://x.com/{h}" for h in FAMOUS_X_HANDLES[:max_accounts]]
+    return fetch_posts_from_profiles(urls, api_token, limit_per_profile=1)
