@@ -13,6 +13,7 @@ import Favourites from "./pages/Favourites";
 import NotFound from "./pages/NotFound";
 import { MobileNav } from "./components/MobileNav";
 import { ChatProvider } from "./contexts/ChatContext";
+import { BriefingAudioProvider } from "./contexts/BriefingAudioContext";
 
 const queryClient = new QueryClient();
 
@@ -43,7 +44,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <ChatProvider>
-          <AnimatedRoutes />
+          <BriefingAudioProvider>
+            <AnimatedRoutes />
+          </BriefingAudioProvider>
         </ChatProvider>
       </BrowserRouter>
     </TooltipProvider>

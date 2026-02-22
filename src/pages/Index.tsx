@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { MessageSquare, Crown, Globe, Cpu, TrendingUp, MapPin, Compass, Sparkles, Headphones, Radio, Mic } from "lucide-react";
 import { AppSidebar } from "../components/AppSidebar";
 import { useAuth } from "../hooks/useAuth";
@@ -11,10 +10,10 @@ import { BriefingCard } from "../components/BriefingCard";
 import { AudioPlayer } from "../components/AudioPlayer";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { useChat } from "../contexts/ChatContext";
+import { useBriefingAudio } from "../contexts/BriefingAudioContext";
 import { PremiumBanner } from "../components/PremiumBanner";
 import { BackgroundEffects } from "../components/BackgroundEffects";
 import { VideoPlayerPopup } from "../components/VideoPlayerPopup";
-import { api } from "../lib/api";
 
 const Index = () => {
   const { user } = useAuth();
@@ -29,9 +28,18 @@ const Index = () => {
   ];
   const hasFavourites = favouriteLabels.length > 0;
   const { chatOpen, setChatOpen } = useChat();
+  const {
+    generatingId: generatingAudio,
+    currentTrack,
+    isPlaying,
+    audioCacheRef: audioCache,
+    startPlay,
+    pause: handlePause,
+    setCurrentTrack,
+    setIsPlaying,
+    clearGeneratingIfNotInList,
+  } = useBriefingAudio();
   const [premiumOpen, setPremiumOpen] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState<{ id: string; src: string; title: string } | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [videoBriefing, setVideoBriefing] = useState<{ title: string; summary: string } | null>(null);
   const [isPremium, setIsPremium] = useState(() => {
     const trial = localStorage.getItem("briefcast_trial");
@@ -92,106 +100,26 @@ const Index = () => {
   // Single daily briefing only (regenerates when user adds/removes sources or topics)
   const filteredBriefings = favouriteBriefings;
 
-  // Cache generated audio blob URLs so we don't regenerate
-  const audioCache = useRef<Record<string, string>>({});
-  const [generatingAudio, setGeneratingAudio] = useState<string | null>(null);
-  const briefingsRef = useRef(filteredBriefings);
-  const generatingIdRef = useRef<string | null>(null);
-  briefingsRef.current = filteredBriefings;
-
-  const handlePlay = useCallback(async (id: string, audioUrl: string, title: string) => {
-    // If there's already a cached or provided audio URL, play it directly
-    if (audioUrl) {
-      setCurrentTrack({ id, src: audioUrl, title });
-      setIsPlaying(true);
-      return;
-    }
-
-    // Avoid starting a second generation (e.g. double-click or re-render)
-    if (generatingIdRef.current) return;
-    generatingIdRef.current = id;
-    setGeneratingAudio(id);
-
-    const briefing = briefingsRef.current.find((b) => b.id === id);
-    if (!briefing) {
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-      return;
-    }
-
-    // Check cache first
-    if (audioCache.current[id]) {
-      setCurrentTrack({ id, src: audioCache.current[id], title });
-      setIsPlaying(true);
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-      return;
-    }
-    toast.info("Generating your podcast audio…", { id: `gen-${id}` });
-
-    const timeoutMs = 90_000;
-    const timeoutId = setTimeout(() => {
-      if (generatingIdRef.current === id) generatingIdRef.current = null;
-      setGeneratingAudio((prev) => (prev === id ? null : prev));
-      toast.error("Generation took too long. Try again.", { id: `gen-${id}` });
-    }, timeoutMs);
-
-    try {
-      let blob: Blob;
-      // "Your Daily Briefing" card: generate from user's sources/topics (LLM summary then TTS), not the prompt
-      if (id === "combined-briefing") {
-        blob = await api.generatePersonalBriefingAudio();
-      } else if (briefing.generateUrls?.length) {
-        blob = await api.generatePodcastFromUrls(briefing.generateUrls);
-      } else if (briefing.generateText) {
-        blob = await api.generatePodcast(briefing.generateText);
-      } else {
-        toast.error("No content available to generate audio", { id: `gen-${id}` });
-        generatingIdRef.current = null;
-        setGeneratingAudio(null);
-        clearTimeout(timeoutId);
-        return;
-      }
-      const blobUrl = URL.createObjectURL(blob);
-      audioCache.current[id] = blobUrl;
-      setCurrentTrack({ id, src: blobUrl, title });
-      setIsPlaying(true);
-      toast.success("Podcast ready!", { id: `gen-${id}` });
-    } catch (err: any) {
-      // Fallback to static sample audio when backend is unreachable
-      const fallback = "/audio/podcast.wav";
-      audioCache.current[id] = fallback;
-      setCurrentTrack({ id, src: fallback, title });
-      setIsPlaying(true);
-      toast.info("Using sample audio (backend unavailable)", { id: `gen-${id}` });
-    } finally {
-      clearTimeout(timeoutId);
-      if (generatingIdRef.current === id) generatingIdRef.current = null;
-      setGeneratingAudio((prev) => (prev === id ? null : prev));
-    }
-  }, []);
+  const handlePlay = useCallback(
+    (id: string, audioUrl: string, title: string) => {
+      const briefing = filteredBriefings.find((b) => b.id === id);
+      const options =
+        !audioUrl && briefing
+          ? {
+              isCombined: id === "combined-briefing",
+              generateUrls: briefing.generateUrls,
+              generateText: briefing.generateText,
+            }
+          : undefined;
+      startPlay(id, audioUrl, title, options);
+    },
+    [filteredBriefings, startPlay]
+  );
 
   // Clear generating state when the briefing is no longer in the list (e.g. user removed interests)
   useEffect(() => {
-    if (!generatingAudio) return;
-    const inList = filteredBriefings.some((b) => b.id === generatingAudio);
-    if (!inList) {
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-    }
-  }, [filteredBriefings, generatingAudio]);
-
-  // Clear generating state on unmount
-  useEffect(() => {
-    return () => {
-      generatingIdRef.current = null;
-      setGeneratingAudio(null);
-    };
-  }, []);
-
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
+    clearGeneratingIfNotInList(filteredBriefings.map((b) => b.id));
+  }, [filteredBriefings, clearGeneratingIfNotInList]);
 
   const currentIndex = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
 
@@ -202,7 +130,7 @@ const Index = () => {
       setCurrentTrack({ id: next.id, src: audioCache.current[next.id] || next.audioUrl, title: next.title });
       setIsPlaying(true);
     }
-  }, [currentTrack, filteredBriefings]);
+  }, [currentTrack, filteredBriefings, setCurrentTrack, setIsPlaying]);
 
   const handleSkipPrevious = useCallback(() => {
     const idx = currentTrack ? filteredBriefings.findIndex(b => b.id === currentTrack.id) : -1;
@@ -211,7 +139,7 @@ const Index = () => {
       setCurrentTrack({ id: prev.id, src: audioCache.current[prev.id] || prev.audioUrl, title: prev.title });
       setIsPlaying(true);
     }
-  }, [currentTrack, filteredBriefings]);
+  }, [currentTrack, filteredBriefings, setCurrentTrack, setIsPlaying]);
 
   if (!user) return null;
 
