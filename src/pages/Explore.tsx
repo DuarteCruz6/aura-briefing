@@ -173,6 +173,9 @@ const Explore = () => {
             </p>
           </motion.div>
 
+          {/* Follow Sources */}
+          <SourcesSection />
+
           {/* Topics + Regions: primary actions side by side on large screens */}
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 mb-10">
             {/* Topics */}
@@ -461,9 +464,6 @@ const Explore = () => {
               </div>
             )}
           </motion.section>
-
-          {/* Follow Sources */}
-          <SourcesSection />
         </div>
       </main>
     </div>
