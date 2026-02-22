@@ -1393,8 +1393,11 @@ def get_youtube_feed_by_topics(
             "message": "Add topic preferences first (e.g. cars, ireland) via POST /preferences/topics",
         }
     max_per_topic = min(max(1, max_per_topic), 25)
-    results = fetch_videos_by_topics(topics, max_per_topic=max_per_topic)
-    return {"topics": results}
+    results, error = fetch_videos_by_topics(topics, max_per_topic=max_per_topic)
+    out = {"topics": results}
+    if error:
+        out["error"] = error
+    return out
 
 
 PODCAST_OUTPUT_DIR = Path("/tmp/podcast_audio")

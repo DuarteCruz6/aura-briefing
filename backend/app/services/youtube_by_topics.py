@@ -51,17 +51,45 @@ def fetch_videos_for_topic(
     try:
         with httpx.Client(timeout=15.0) as client:
             r = client.get(url, params=params)
-            r.raise_for_status()
             data = r.json()
     except httpx.HTTPStatusError as e:
-        return ([], f"YouTube API error: {e.response.status_code}")
+        err_detail = ""
+        try:
+            body = e.response.json()
+            err_body = body.get("error") if isinstance(body, dict) else None
+            if err_body:
+                err_detail = err_body.get("message", "")
+                errors = err_body.get("errors") or []
+                if errors and isinstance(errors[0], dict):
+                    reason = errors[0].get("reason", "")
+                    if reason:
+                        err_detail = f"{reason} - {err_detail}"
+        except Exception:
+            pass
+        msg = err_detail or str(e.response.status_code)
+        return ([], f"YouTube API error: {msg}")
     except Exception as e:
         return ([], f"YouTube API request failed: {e}")
+
+    # Error in successful HTTP response body (e.g. quota, disabled API)
+    err_body = data.get("error") if isinstance(data, dict) else None
+    if err_body:
+        msg = err_body.get("message", "Unknown API error")
+        errors = err_body.get("errors") or []
+        if errors and isinstance(errors[0], dict):
+            reason = errors[0].get("reason", "")
+            if reason:
+                msg = f"{reason}: {msg}"
+        return ([], f"YouTube API: {msg}")
+    if r.status_code >= 400:
+        return ([], f"YouTube API error: {r.status_code}")
+
     items = data.get("items") or []
     results = []
     for item in items:
-        vid = item.get("id") or {}
-        video_id = vid.get("videoId")
+        # Search list returns id: { kind: "youtube#video", videoId: "..." }
+        vid = item.get("id") if isinstance(item.get("id"), dict) else {}
+        video_id = (vid.get("videoId") or "").strip() if vid else None
         if not video_id:
             continue
         snippet = item.get("snippet") or {}
@@ -77,20 +105,24 @@ def fetch_videos_for_topic(
 def fetch_videos_by_topics(
     topics: list[str],
     max_per_topic: int = 5,
-) -> list[dict]:
+) -> tuple[list[dict], str | None]:
     """
-    Fetch recent videos for each topic. Returns list of {topic, videos: [{url, title, published_at, channel_title}]}.
+    Fetch recent videos for each topic. Returns (list of {topic, videos: [...]}, error_message).
     Deduplicates by URL across topics. Requires YOUTUBE_API_KEY.
+    If any topic fails (e.g. API key missing, 403), returns first error so caller can surface it.
     """
     if not topics:
-        return []
+        return ([], None)
     result = []
     seen_urls: set[str] = set()
+    first_error: str | None = None
     for topic in topics:
         topic = (topic or "").strip()
         if not topic:
             continue
-        videos, _ = fetch_videos_for_topic(topic, max_videos=max_per_topic)
+        videos, err = fetch_videos_for_topic(topic, max_videos=max_per_topic)
+        if err and first_error is None:
+            first_error = err
         deduped = []
         for v in videos:
             u = (v.get("url") or "").strip()
@@ -98,4 +130,4 @@ def fetch_videos_by_topics(
                 seen_urls.add(u)
                 deduped.append(v)
         result.append({"topic": topic, "videos": deduped})
-    return result
+    return (result, first_error)
