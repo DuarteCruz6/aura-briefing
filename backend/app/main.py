@@ -1519,6 +1519,7 @@ async def progress_sse(token: str):
     )
 
 
+
 @app.get("/feed/by-topics")
 def get_feed_by_topics(
     user_id: int = Depends(get_current_user_id),
