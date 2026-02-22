@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import { MobileNav } from "./components/MobileNav";
 import { ChatProvider } from "./contexts/ChatContext";
 import { AudioProvider } from "./contexts/AudioContext";
+import { BookmarkProvider } from "./contexts/BookmarkContext";
 import { GlobalAudioPlayer } from "./components/GlobalAudioPlayer";
 
 const queryClient = new QueryClient();
@@ -45,10 +46,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <ChatProvider>
-          <AudioProvider>
-            <AnimatedRoutes />
-            <GlobalAudioPlayer />
-          </AudioProvider>
+          <BookmarkProvider>
+            <AudioProvider>
+              <AnimatedRoutes />
+              <GlobalAudioPlayer />
+            </AudioProvider>
+          </BookmarkProvider>
         </ChatProvider>
       </BrowserRouter>
     </TooltipProvider>
