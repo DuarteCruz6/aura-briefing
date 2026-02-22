@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 import traceback
 import uuid
@@ -753,6 +754,50 @@ def delete_bookmark(
 
 ## ─── Source CRUD ───────────────────────────────────────────────────────────
 
+# Allowed URL patterns: YouTube channels, X users, LinkedIn profiles only
+_SOURCE_URL_PATTERNS = {
+    SourceType.YOUTUBE: re.compile(
+        r"^(https?://)?(www\.)?youtube\.com/(channel/[^/?#]+|@[^/?#]+|c/[^/?#]+|user/[^/?#]+)",
+        re.IGNORECASE,
+    ),
+    SourceType.X: re.compile(
+        r"^(https?://)?(www\.)?(x\.com|twitter\.com)/[a-zA-Z0-9_]{1,15}/?$",
+        re.IGNORECASE,
+    ),
+    SourceType.LINKEDIN: re.compile(
+        r"^(https?://)?(www\.)?linkedin\.com/in/[^/?#]+",
+        re.IGNORECASE,
+    ),
+}
+
+
+def _validate_source_url(url: str, source_type: SourceType) -> None:
+    """Raise HTTPException if URL is not allowed for this source type (YouTube channel, X user, LinkedIn profile)."""
+    if source_type not in _SOURCE_URL_PATTERNS:
+        return  # no URL format check for other types
+    raw = (url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="URL is required")
+    normalized = raw if raw.startswith("http") else f"https://{raw}"
+    if not _SOURCE_URL_PATTERNS[source_type].search(normalized):
+        if source_type == SourceType.YOUTUBE:
+            raise HTTPException(
+                status_code=400,
+                detail="Use a YouTube channel URL (e.g. youtube.com/@handle or youtube.com/channel/...)",
+            )
+        if source_type == SourceType.X:
+            raise HTTPException(
+                status_code=400,
+                detail="Use an X or Twitter profile URL (e.g. x.com/username)",
+            )
+        if source_type == SourceType.LINKEDIN:
+            raise HTTPException(
+                status_code=400,
+                detail="Use a LinkedIn profile URL (e.g. linkedin.com/in/username)",
+            )
+        raise HTTPException(status_code=400, detail="Invalid URL for this source type")
+
+
 @app.get("/sources")
 def list_sources(
     user_id: int = Depends(get_current_user_id),
@@ -789,12 +834,19 @@ def create_source(
     except ValueError:
         freq = FetchFrequency.DAILY
 
+    _validate_source_url(body.url, source_type)
+
+    # Normalize URL for storage (add https if missing)
+    url = (body.url or "").strip()
+    if url and not url.startswith("http"):
+        url = f"https://{url}"
+
     # Prevent duplicate URL for same user
-    existing = db.query(Source).filter(Source.user_id == user_id, Source.url == body.url).first()
+    existing = db.query(Source).filter(Source.user_id == user_id, Source.url == url).first()
     if existing:
         raise HTTPException(status_code=409, detail="You're already following this source")
 
-    source = Source(user_id=user_id, type=source_type, url=body.url, name=body.name, frequency=freq)
+    source = Source(user_id=user_id, type=source_type, url=url, name=body.name, frequency=freq)
     db.add(source)
     db.commit()
     db.refresh(source)
