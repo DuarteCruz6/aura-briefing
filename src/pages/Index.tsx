@@ -57,6 +57,20 @@ const Index = () => {
   const [frequency, setFrequency] = useState(() => localStorage.getItem("briefcast_frequency") || "daily");
   const [briefingsLoading, setBriefingsLoading] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
+  const audioProgressTargetRef = useRef(0);
+
+  // Smooth audio progress: animate 1% at a time toward latest backend value
+  useEffect(() => {
+    if (!generatingAudio) return;
+    const id = setInterval(() => {
+      setAudioProgress((prev) => {
+        const target = audioProgressTargetRef.current;
+        if (prev >= target) return prev;
+        return Math.min(prev + 1, target);
+      });
+    }, 35);
+    return () => clearInterval(id);
+  }, [generatingAudio]);
 
   // Re-check premium + frequency when popup closes or page focuses
   useEffect(() => {
@@ -127,6 +141,7 @@ const Index = () => {
     if (generatingAudio) return;
     setGenerating(id);
     setAudioProgress(0);
+    audioProgressTargetRef.current = 0;
 
     const briefing = briefingsRef.current.find((b) => b.id === id);
     if (!briefing) {
@@ -136,7 +151,11 @@ const Index = () => {
     }
     toast.info("Generating your podcast audio…", { id: `gen-${id}` });
 
-    const progressOpt = { onProgress: setAudioProgress };
+    const progressOpt = {
+      onProgress: (p: number) => {
+        audioProgressTargetRef.current = p;
+      },
+    };
     const timeoutMs = 90_000;
     const timeoutId = setTimeout(() => {
       setGenerating(null);

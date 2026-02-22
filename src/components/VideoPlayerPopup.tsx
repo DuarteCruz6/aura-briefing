@@ -33,6 +33,24 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
   }, [open, videoUrl]);
 
   const [progress, setProgress] = useState(0);
+  const progressTargetRef = useRef(0);
+
+  const setProgressTarget = useCallback((p: number) => {
+    progressTargetRef.current = p;
+  }, []);
+
+  // Smooth progress: animate displayed progress 1% at a time toward latest backend value
+  useEffect(() => {
+    if (status !== "loading") return;
+    const id = setInterval(() => {
+      setProgress((prev) => {
+        const target = progressTargetRef.current;
+        if (prev >= target) return prev;
+        return Math.min(prev + 1, target);
+      });
+    }, 35);
+    return () => clearInterval(id);
+  }, [status]);
 
   // When popup opens with summary, start video generation (real progress via backend SSE)
   useEffect(() => {
@@ -49,9 +67,10 @@ export function VideoPlayerPopup({ open, onClose, title, summary, isPremium }: V
     setStatus("loading");
     setErrorMessage(null);
     setProgress(0);
+    progressTargetRef.current = 0;
 
     api
-      .generateVideo({ title, summary }, true, { onProgress: setProgress })
+      .generateVideo({ title, summary }, true, { onProgress: setProgressTarget })
       .then((blob) => {
         if (cancelled) return;
         setProgress(100);
